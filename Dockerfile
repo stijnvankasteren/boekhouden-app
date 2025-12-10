@@ -31,6 +31,9 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV DATABASE_URL="mysql://boekhouding:boekhouding-password@boekhouding-db:3306/boekhouding-db"
 
+# OpenSSL voor Prisma
+RUN apt-get update && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
+
 # Create non-root user
 RUN useradd -m nextjs
 
@@ -43,6 +46,9 @@ COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
 COPY --from=builder /app/package.json ./package.json
 COPY --from=builder /app/node_modules ./node_modules
+
+# Geef alles in /app aan user 'nextjs'
+RUN chown -R nextjs:nextjs /app
 
 USER nextjs
 
