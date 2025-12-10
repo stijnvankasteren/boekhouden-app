@@ -13,6 +13,9 @@ RUN npm install
 # 3) rest van de app kopiëren
 COPY . .
 
+# Zorg dat de public-map bestaat (ook als die niet in de repo staat)
+RUN mkdir -p public
+
 ENV NODE_ENV=production
 ENV DATABASE_URL="mysql://boekhouding:boekhouding-password@boekhouding-db:3306/boekhouding-db"
 
