@@ -13,9 +13,9 @@ services:
     volumes:
       - db_data:/var/lib/mysql
     ports:
-      - "3306:3306"   # <-- toegevoegd, zodat de host op 127.0.0.1:3306 bij de DB kan
+      - "3306:3306"
 
-  boekhouding:
+  boekhouding-app:
     build:
       context: .
       dockerfile: Dockerfile
