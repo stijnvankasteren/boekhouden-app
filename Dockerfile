@@ -3,19 +3,20 @@ FROM node:20 AS builder
 
 WORKDIR /app
 
-# Install dependencies
+# 1) package-info + prisma-schema kopiëren (voor postinstall)
 COPY package.json package-lock.json* ./
+COPY prisma ./prisma
+
+# 2) dependencies installeren (postinstall -> prisma generate werkt nu)
 RUN npm install
 
-# Copy rest of the app
+# 3) rest van de app kopiëren
 COPY . .
 
 ENV NODE_ENV=production
-
-# Use DATABASE_URL from environment at build-time if needed, but default to MariaDB service
 ENV DATABASE_URL="mysql://boekhouding:boekhouding-password@boekhouding-db:3306/boekhouding-db"
 
-# Generate Prisma client and build Next.js app
+# 4) voor de zekerheid nog een prisma generate + build
 RUN npx prisma generate
 RUN npm run build
 
