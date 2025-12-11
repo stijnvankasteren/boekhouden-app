@@ -41,6 +41,7 @@ function updateSummary(summary) {
 function setLayoutForView(view) {
   const summaryRow = document.querySelector('.summary-row');
   const grid = document.querySelector('.content-grid');
+  const tableWrapper = document.querySelector('.table-wrapper');
   if (!summaryRow || !grid) return;
 
   const isTxView = view === 'dashboard' || view === 'income' || view === 'expense';
@@ -48,9 +49,11 @@ function setLayoutForView(view) {
   if (isTxView) {
     summaryRow.classList.remove('hidden');
     grid.classList.remove('single-panel');
+    if (tableWrapper) tableWrapper.classList.remove('hidden');
   } else {
     summaryRow.classList.add('hidden');
     grid.classList.add('single-panel');
+    if (tableWrapper) tableWrapper.classList.add('hidden');
   }
 }
 
@@ -119,6 +122,48 @@ function makeSheetEditable(root) {
   root.querySelectorAll('td').forEach((td) => {
     td.setAttribute('contenteditable', 'true');
   });
+  enhanceSheetUi(root);
+}
+
+function enhanceSheetUi(root) {
+  if (!root) return;
+
+  root.querySelectorAll('[data-action="add-row"]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const targetId = btn.getAttribute('data-target');
+      let table = null;
+
+      if (targetId) {
+        table = root.querySelector('#' + targetId);
+      }
+      if (!table) {
+        const section = btn.closest('.sheet-section');
+        if (section) {
+          table = section.querySelector('table');
+        }
+      }
+
+      if (table) {
+        addRowToTable(table);
+      }
+    });
+  });
+}
+
+function addRowToTable(table) {
+  if (!table) return;
+  const headRow = table.querySelector('thead tr');
+  const colCount = headRow ? headRow.children.length : 1;
+  const tbody = table.querySelector('tbody') || table.createTBody();
+  const tr = document.createElement('tr');
+
+  for (let i = 0; i < colCount; i++) {
+    const td = document.createElement('td');
+    td.setAttribute('contenteditable', 'true');
+    tr.appendChild(td);
+  }
+
+  tbody.appendChild(tr);
 }
 
 async function loadSheetFromServer(view) {
@@ -402,6 +447,18 @@ window.addEventListener('DOMContentLoaded', () => {
       const view = btn.dataset.view || 'dashboard';
       setActiveNav(view);
     });
+  });
+
+  // extra navigatieknoppen binnen de pagina (bijv. op het dashboard)
+  document.addEventListener('click', (event) => {
+    const target = event.target.closest('[data-goto-view]');
+    if (target) {
+      event.preventDefault();
+      const view = target.getAttribute('data-goto-view');
+      if (view) {
+        setActiveNav(view);
+      }
+    }
   });
 
   reload();

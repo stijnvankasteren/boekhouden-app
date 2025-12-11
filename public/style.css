@@ -184,7 +184,8 @@ body {
 }
 
 input,
-select {
+select,
+textarea {
   padding: 0.4rem 0.5rem;
   border-radius: 0.5rem;
   border: 1px solid var(--border-strong);
@@ -386,4 +387,53 @@ th {
 .sheet-table td[contenteditable="true"]:focus {
   outline: 2px solid var(--accent);
   outline-offset: -1px;
+}
+
+
+/* Vereenvoudigde sheet-UI met knoppen i.p.v. grote Excel-tabellen */
+.sheet-section {
+  margin-top: 0.75rem;
+  font-size: 0.85rem;
+}
+
+.sheet-section + .sheet-section {
+  margin-top: 1rem;
+}
+
+.sheet-note {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-bottom: 0.5rem;
+}
+
+.sheet-actions {
+  margin-top: 0.5rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.nav-chip {
+  background: var(--blue-soft);
+  color: var(--blue);
+  border-radius: 999px;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.8rem;
+  border: 1px solid rgba(37, 99, 235, 0.25);
+  cursor: pointer;
+}
+
+.nav-chip:hover {
+  background: #dbeafe;
+}
+
+.sheet-list {
+  padding-left: 1.1rem;
+  margin: 0.25rem 0 0.75rem;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.sheet-list li + li {
+  margin-top: 0.25rem;
 }
