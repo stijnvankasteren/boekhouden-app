@@ -2,21 +2,27 @@ FROM node:20
 
 WORKDIR /app
 
-# 1) package-informatie + prisma-schema kopiëren
+# Build arguments uit docker-compose
+ARG DB_USER
+ARG DB_PASSWORD
+ARG DB_NAME
+ARG DB_HOST=boekhouding-db
+
+# Deze ENV gebruikt npm / Prisma tijdens install
+ENV DATABASE_URL="mysql://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:3306/${DB_NAME}"
+ENV NODE_ENV=development
+
+# 1) package-info + prisma-schema
 COPY package.json package-lock.json* ./
 COPY prisma ./prisma
 
-# 2) env voor Prisma (postinstall) zodat npm install niet crasht
-ENV DATABASE_URL="mysql://boekhouding:boekhouding-password@boekhouding-db:3306/boekhouding-db"
-ENV NODE_ENV=development
-
-# 3) dependencies installeren
+# 2) dependencies
 RUN npm install
 
-# 4) rest van de code kopiëren
+# 3) rest van de code
 COPY . .
 
 EXPOSE 3000
 
-# 5) GEEN npm run build meer, alleen dev-server starten
+# Geen build, alleen dev (zoals je nu al doet)
 CMD ["npm", "run", "dev"]
