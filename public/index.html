@@ -483,6 +483,21 @@
         <input id="settings-company" type="text" placeholder="Naam van je bedrijf" />
       </div>
       <div class="field">
+        <label for="settings-vatEnabled">Btw-berekening</label>
+        <select id="settings-vatEnabled">
+          <option value="true">Btw toepassen</option>
+          <option value="false">Geen btw toepassen</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="settings-vatRate">Btw-tarief (%)</label>
+        <input id="settings-vatRate" type="number" step="0.01" min="0" max="100" value="21" />
+      </div>
+      <div class="field">
+        <label for="settings-themeColor">Accentkleur</label>
+        <input id="settings-themeColor" type="color" />
+      </div>
+      <div class="field">
         <label for="settings-notes">Interne notities</label>
         <textarea id="settings-notes" rows="3" placeholder="Bijv. bijzonderheden voor dit jaar."></textarea>
       </div>

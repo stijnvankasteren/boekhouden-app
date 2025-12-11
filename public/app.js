@@ -4,7 +4,88 @@ let lastData = {
   summary: { totalIncome: 0, totalExpenses: 0, result: 0 },
 };
 
+// The currently loaded settings.  Updated whenever loadSettings runs.  Used
+// throughout the UI to adapt text (e.g. displaying the chosen year).
+let currentSettings = null;
+
 const sheetCache = {};
+
+// Utility to lighten a hex colour by mixing it with white.  Used for
+// generating a "soft" variant of the theme colour for backgrounds.  The
+// percent parameter indicates how much white to mix in (e.g. 0.85 adds 85%
+// white).  Returns the resulting hex string.  If input is invalid the
+// original value is returned.
+function lightenColor(hex, percent = 0.85) {
+  if (!hex || typeof hex !== 'string' || !hex.startsWith('#')) return hex;
+  const clean = hex.replace('#', '');
+  if (clean.length !== 6) return hex;
+  const r = parseInt(clean.substring(0, 2), 16);
+  const g = parseInt(clean.substring(2, 4), 16);
+  const b = parseInt(clean.substring(4, 6), 16);
+  const mix = (c) => {
+    const mixed = Math.round(c + (255 - c) * percent);
+    return mixed.toString(16).padStart(2, '0');
+  };
+  return '#' + mix(r) + mix(g) + mix(b);
+}
+
+// Apply theming based on settings by updating CSS custom properties on the
+// document root.  Expects an object with a `themeColor` property (hex
+// including #).  When absent the defaults defined in CSS remain.
+function applyTheme(settings) {
+  if (!settings) return;
+  const root = document.documentElement;
+  const colour = settings.themeColor || '#2563eb';
+  root.style.setProperty('--blue', colour);
+  root.style.setProperty('--blue-soft', lightenColor(colour, 0.9));
+  // custom CSS can be applied as an inline <style> if provided
+  if (settings.customCss) {
+    let styleTag = document.getElementById('custom-css');
+    if (!styleTag) {
+      styleTag = document.createElement('style');
+      styleTag.id = 'custom-css';
+      document.head.appendChild(styleTag);
+    }
+    styleTag.textContent = settings.customCss;
+  }
+}
+
+// Fetch persisted settings from the server and update the settings fields and
+// general UI accordingly.  This is called on initial load and after saving
+// settings.
+async function loadSettings() {
+  try {
+    const res = await fetch('/api/settings');
+    if (!res.ok) return;
+    const settings = await res.json();
+    currentSettings = settings;
+    // Populate form fields when they exist on the page
+    const yearEl = document.getElementById('settings-year');
+    if (yearEl) yearEl.value = settings.year || new Date().getFullYear();
+    const companyEl = document.getElementById('settings-company');
+    if (companyEl) companyEl.value = settings.company || '';
+    const vatEnabledEl = document.getElementById('settings-vatEnabled');
+    if (vatEnabledEl) vatEnabledEl.value = String(!!settings.vatEnabled);
+    const vatRateEl = document.getElementById('settings-vatRate');
+    if (vatRateEl) {
+      const perc = Number(settings.vatRate) * 100;
+      // show as integer when possible, else with two decimals
+      vatRateEl.value = !Number.isNaN(perc) ? parseFloat(perc.toFixed(2)) : '';
+    }
+    const themeEl = document.getElementById('settings-themeColor');
+    if (themeEl) themeEl.value = settings.themeColor || '#2563eb';
+    const notesEl = document.getElementById('settings-notes');
+    if (notesEl) notesEl.value = settings.customCss || '';
+    // Update header information
+    const brandTitle = document.querySelector('.brand-title');
+    const brandSubtitle = document.querySelector('.brand-subtitle');
+    if (brandTitle) brandTitle.textContent = settings.company || brandTitle.textContent;
+    if (brandSubtitle) brandSubtitle.textContent = 'Jaar ' + (settings.year || new Date().getFullYear()) + ' — Simpele webversie';
+    applyTheme(settings);
+  } catch (e) {
+    console.error('Fout bij laden settings:', e);
+  }
+}
 
 async function fetchData() {
   const res = await fetch('/api/transactions');
@@ -115,6 +196,42 @@ function renderTable(transactions) {
 
     tbody.appendChild(row);
   }
+}
+
+// Update the btw-aangifte table based on the computed summary.  The table is
+// expected to have at least three rows: omzet hoog tarief, omzet laag tarief
+// (unused for now) and voorbelasting.  The amounts are filled in with the
+// amounts excluding VAT and the VAT amounts themselves.  When VAT is not
+// enabled the values will be zero.
+function updateBtwTable(summary) {
+  const table = document.getElementById('btw-table');
+  if (!table || !summary) return;
+  const rows = table.querySelectorAll('tbody tr');
+  if (rows.length < 3) return;
+  const exclIncome = summary.totalIncome - summary.vatOnIncome;
+  const exclExpenses = summary.totalExpenses - summary.vatOnExpenses;
+  // Row 0: omzet hoog tarief
+  rows[0].children[1].textContent = formatCurrency(exclIncome);
+  rows[0].children[2].textContent = formatCurrency(summary.vatOnIncome);
+  // Row 1: omzet laag tarief (not used in this simple version)
+  rows[1].children[1].textContent = formatCurrency(0);
+  rows[1].children[2].textContent = formatCurrency(0);
+  // Row 2: voorbelasting (VAT on expenses)
+  rows[2].children[1].textContent = formatCurrency(exclExpenses);
+  rows[2].children[2].textContent = formatCurrency(summary.vatOnExpenses);
+}
+
+// Update the winst & verlies / balans table with totals from the summary.  The
+// table is expected to have at least three rows: totale omzet, totaal
+// uitgaven en resultaat.  Additional rows are ignored.
+function updateWvTable(summary) {
+  const table = document.getElementById('wv-table');
+  if (!table || !summary) return;
+  const rows = table.querySelectorAll('tbody tr');
+  if (rows.length < 3) return;
+  rows[0].children[1].textContent = formatCurrency(summary.totalIncome);
+  rows[1].children[1].textContent = formatCurrency(summary.totalExpenses);
+  rows[2].children[1].textContent = formatCurrency(summary.result);
 }
 
 function makeSheetEditable(root) {
@@ -239,6 +356,9 @@ async function saveCurrentSheet() {
 
     const html = container.innerHTML;
 
+    // Always persist the sheet HTML when editing; for the settings view we also
+    // persist the settings object.  The server expects the HTML field even
+    // though it may be empty for some views.
     const res = await fetch('/api/sheets/' + encodeURIComponent(currentView), {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -250,6 +370,42 @@ async function saveCurrentSheet() {
     }
 
     sheetCache[currentView] = html;
+
+    // If we are on the settings tab then collect the settings values and send
+    // them to the backend.  We do this after saving the sheet so that both
+    // operations complete in sequence.  The fields are optional; missing
+    // values will not override existing settings on the server.
+    if (currentView === 'settings') {
+      const yearEl = document.getElementById('settings-year');
+      const companyEl = document.getElementById('settings-company');
+      const vatEnabledEl = document.getElementById('settings-vatEnabled');
+      const vatRateEl = document.getElementById('settings-vatRate');
+      const themeEl = document.getElementById('settings-themeColor');
+      const notesEl = document.getElementById('settings-notes');
+      const settingsPayload = {
+        year: yearEl ? Number(yearEl.value) : undefined,
+        company: companyEl ? companyEl.value : undefined,
+        vatEnabled: vatEnabledEl ? vatEnabledEl.value === 'true' : undefined,
+        vatRate: vatRateEl ? Number(vatRateEl.value) / 100 : undefined,
+        themeColor: themeEl ? themeEl.value : undefined,
+        customCss: notesEl ? notesEl.value : undefined,
+      };
+      try {
+        const resSettings = await fetch('/api/settings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(settingsPayload),
+        });
+        if (!resSettings.ok) {
+          throw new Error('Status ' + resSettings.status);
+        }
+        // Refresh settings and theme after successful save
+        await loadSettings();
+      } catch (e) {
+        console.error('Fout bij opslaan van instellingen:', e);
+      }
+    }
+
     msg.textContent = 'Opgeslagen';
     msg.className = 'sheet-message ok';
   } catch (e) {
@@ -274,7 +430,7 @@ function applyView() {
 
   switch (currentView) {
     case 'dashboard':
-      rightTitle.textContent = 'Transacties 2025';
+      rightTitle.textContent = 'Transacties ' + (currentSettings ? currentSettings.year : '2025');
       rightCaption.textContent = 'Overzicht van alle mutaties (Dashboard).';
       break;
     case 'factuur':
@@ -322,12 +478,16 @@ function applyView() {
       rightCaption.textContent =
         'Overzicht van W&V en balans (waarden uit dit webbestand).';
       txs = [];
+      // Fill the W&V/balans table using the latest summary
+      updateWvTable(lastData.summary);
       break;
     case 'btw':
       rightTitle.textContent = 'Btw-aangifte';
       rightCaption.textContent =
         'Vul hier je btw-overzicht in zoals in het Excel-tabblad.';
       txs = [];
+      // Update the VAT overview table using the latest summary
+      updateBtwTable(lastData.summary);
       break;
     case 'settings':
       rightTitle.textContent = 'Instellingen';
@@ -342,7 +502,7 @@ function applyView() {
       txs = [];
       break;
     default:
-      rightTitle.textContent = 'Transacties 2025';
+      rightTitle.textContent = 'Transacties ' + (currentSettings ? currentSettings.year : '2025');
       rightCaption.textContent = 'Overzicht van alle mutaties.';
       break;
   }
@@ -449,7 +609,7 @@ window.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  // extra navigatieknoppen binnen de pagina (bijv. op het dashboard)
+  // Extra navigatieknoppen binnen de pagina (bijv. op het dashboard)
   document.addEventListener('click', (event) => {
     const target = event.target.closest('[data-goto-view]');
     if (target) {
@@ -461,5 +621,8 @@ window.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  reload();
+  // Load settings first (applies theme and header) then load transactions
+  loadSettings().then(() => {
+    reload();
+  });
 });

@@ -7,6 +7,8 @@ const PORT = process.env.PORT || 3000;
 const DATA_DIR = path.join(__dirname, 'data');
 const DATA_FILE = path.join(DATA_DIR, 'transactions.json');
 const SHEETS_DIR = path.join(DATA_DIR, 'sheets');
+// Path to the settings file used to persist configuration such as VAT settings and theme
+const SETTINGS_FILE = path.join(DATA_DIR, 'settings.json');
 
 function ensureDir(p) {
   if (!fs.existsSync(p)) {
@@ -24,6 +26,22 @@ function initStorage() {
   }
   if (!fs.existsSync(SHEETS_DIR)) {
     fs.mkdirSync(SHEETS_DIR, { recursive: true });
+  }
+
+  // Initialise a default settings file if it does not yet exist.  This file stores
+  // general application settings (company name, year, VAT configuration, theme
+  // colour, etc.).  Without this file the application will fall back to
+  // sensible defaults.  See `readSettings` for the fallback values.
+  if (!fs.existsSync(SETTINGS_FILE)) {
+    const defaultSettings = {
+      company: 'SVK Beheer Holding B.V.',
+      year: new Date().getFullYear(),
+      vatEnabled: true,
+      vatRate: 0.21,
+      themeColor: '#2563eb',
+      customCss: ''
+    };
+    fs.writeFileSync(SETTINGS_FILE, JSON.stringify(defaultSettings, null, 2), 'utf8');
   }
 }
 
@@ -117,18 +135,91 @@ function serveStatic(req, res) {
   });
 }
 
-function calculateSummary(list) {
+/**
+ * Calculate summary statistics based on the list of transactions and supplied
+ * settings.  In addition to the existing income/expense totals this
+ * implementation also derives VAT on income and expenses and the net VAT
+ * payable.  When VAT is disabled via the settings the VAT figures will be
+ * zero and the total amounts remain untouched.
+ *
+ * @param {Array} list List of transaction objects {type: 'income' | 'expense', amount: number}
+ * @param {Object} [settings] Optional settings object.  When not provided the
+ * settings file will be read from disk.
+ * @returns {Object} Summary containing totals and VAT values
+ */
+function calculateSummary(list, settings) {
+  const cfg = settings || readSettings();
+  const vatEnabled = !!cfg.vatEnabled;
+  // Accept a VAT rate between 0 and 1; default to 0 when disabled
+  const vatRate = vatEnabled ? Number(cfg.vatRate) || 0 : 0;
   let income = 0;
   let expenses = 0;
+  let vatOnIncome = 0;
+  let vatOnExpenses = 0;
   for (const tx of list) {
-    if (tx.type === 'expense') expenses += tx.amount;
-    else income += tx.amount;
+    const amount = Number(tx.amount) || 0;
+    if (tx.type === 'expense') {
+      expenses += amount;
+      if (vatRate > 0) {
+        const vatPart = amount - amount / (1 + vatRate);
+        vatOnExpenses += vatPart;
+      }
+    } else {
+      income += amount;
+      if (vatRate > 0) {
+        const vatPart = amount - amount / (1 + vatRate);
+        vatOnIncome += vatPart;
+      }
+    }
   }
+  const result = income - expenses;
+  const vatToPay = vatOnIncome - vatOnExpenses;
   return {
     totalIncome: income,
     totalExpenses: expenses,
-    result: income - expenses,
+    result,
+    vatOnIncome,
+    vatOnExpenses,
+    vatToPay,
   };
+}
+
+/**
+ * Read persisted settings from disk.  If the settings file does not exist or
+ * cannot be parsed the function will return a set of sensible defaults.  The
+ * returned object always includes all expected keys.
+ */
+function readSettings() {
+  try {
+    const raw = fs.readFileSync(SETTINGS_FILE, 'utf8');
+    return JSON.parse(raw);
+  } catch (e) {
+    console.error('Error reading settings:', e);
+    return {
+      company: 'SVK Beheer Holding B.V.',
+      year: new Date().getFullYear(),
+      vatEnabled: true,
+      vatRate: 0.21,
+      themeColor: '#2563eb',
+      customCss: '',
+    };
+  }
+}
+
+/**
+ * Persist settings to disk.  Returns true on success and false on failure.
+ * Invalid JSON will cause an exception to be thrown by JSON.stringify.
+ * @param {Object} settings The settings object to persist
+ * @returns {boolean}
+ */
+function writeSettings(settings) {
+  try {
+    fs.writeFileSync(SETTINGS_FILE, JSON.stringify(settings, null, 2), 'utf8');
+    return true;
+  } catch (e) {
+    console.error('Error writing settings:', e);
+    return false;
+  }
 }
 
 function handleApi(req, res) {
@@ -137,9 +228,11 @@ function handleApi(req, res) {
 
   if (pathname === '/api/transactions' && req.method === 'GET') {
     const list = readTransactions();
+    const settings = readSettings();
     return sendJson(res, 200, {
       transactions: list,
-      summary: calculateSummary(list),
+      summary: calculateSummary(list, settings),
+      settings,
     });
   }
 
@@ -169,11 +262,11 @@ function handleApi(req, res) {
 
         list.push(tx);
         writeTransactions(list);
-
+        const settings = readSettings();
         return sendJson(res, 201, {
           ok: true,
           transaction: tx,
-          summary: calculateSummary(list),
+          summary: calculateSummary(list, settings),
         });
       } catch (e) {
         console.error('Error parsing POST body:', e);
@@ -188,9 +281,10 @@ function handleApi(req, res) {
     const list = readTransactions();
     const newList = list.filter((t) => t.id !== id);
     writeTransactions(newList);
+    const settings = readSettings();
     return sendJson(res, 200, {
       ok: true,
-      summary: calculateSummary(newList),
+      summary: calculateSummary(newList, settings),
     });
   }
 
@@ -231,6 +325,65 @@ function handleApi(req, res) {
       return;
     }
 
+    return sendJson(res, 405, { ok: false, error: 'Methode niet toegestaan' });
+  }
+
+  // API endpoints for reading and updating global settings
+  if (pathname === '/api/settings') {
+    if (req.method === 'GET') {
+      const settings = readSettings();
+      return sendJson(res, 200, settings);
+    }
+    if (req.method === 'POST') {
+      let body = '';
+      req.on('data', (chunk) => {
+        body += chunk.toString('utf8');
+        if (body.length > 1e6) {
+          // Prevent abuse by limiting payload size
+          req.destroy();
+        }
+      });
+      req.on('end', () => {
+        try {
+          const data = JSON.parse(body || '{}');
+          const current = readSettings();
+          const newSettings = Object.assign({}, current, {
+            company:
+              typeof data.company === 'string' && data.company.trim() !== ''
+                ? data.company
+                : current.company,
+            year:
+              typeof data.year === 'number' && !Number.isNaN(data.year)
+                ? data.year
+                : current.year,
+            vatEnabled:
+              typeof data.vatEnabled === 'boolean'
+                ? data.vatEnabled
+                : current.vatEnabled,
+            vatRate:
+              typeof data.vatRate === 'number' && !Number.isNaN(data.vatRate)
+                ? data.vatRate
+                : current.vatRate,
+            themeColor:
+              typeof data.themeColor === 'string' && data.themeColor.startsWith('#')
+                ? data.themeColor
+                : current.themeColor,
+            customCss:
+              typeof data.customCss === 'string'
+                ? data.customCss
+                : current.customCss,
+          });
+          if (!writeSettings(newSettings)) {
+            return sendJson(res, 500, { ok: false, error: 'Kon instellingen niet opslaan' });
+          }
+          return sendJson(res, 200, { ok: true, settings: newSettings });
+        } catch (e) {
+          console.error('Error parsing settings body:', e);
+          return sendJson(res, 400, { ok: false, error: 'Ongeldige JSON voor instellingen' });
+        }
+      });
+      return;
+    }
     return sendJson(res, 405, { ok: false, error: 'Methode niet toegestaan' });
   }
   return notFound(res);
