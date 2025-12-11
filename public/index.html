@@ -2,86 +2,112 @@
 <html lang="nl">
 <head>
   <meta charset="utf-8" />
-  <title>Boekhouding (simpel)</title>
+  <title>Boekhouding Dashboard</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="stylesheet" href="/style.css" />
 </head>
 <body>
-  <header class="topbar">
-    <h1>Boekhouding</h1>
-    <span class="badge">Simple HTML versie</span>
+  <header class="app-header">
+    <div class="brand">
+      <div class="brand-title">SVK Beheer Holding B.V.</div>
+      <div class="brand-subtitle">Jaar 2025 &mdash; Simpele webversie</div>
+    </div>
+    <div class="brand-meta">
+      <span class="tag">Layout gebaseerd op Excel 2025</span>
+    </div>
   </header>
 
-  <main class="container">
-    <section class="cards">
-      <div class="card">
-        <h2>Inkomsten</h2>
-        <p id="totalIncome" class="amount positive">€ 0,00</p>
+  <nav class="top-nav">
+    <a href="#" class="nav-link active">Dashboard</a>
+    <a href="#" class="nav-link">Verkopen &amp; Inkomsten</a>
+    <a href="#" class="nav-link">Inkopen &amp; Uitgaven</a>
+    <a href="#" class="nav-link">Relaties</a>
+    <a href="#" class="nav-link">W&amp;V en Balans</a>
+    <a href="#" class="nav-link">Btw-aangifte</a>
+    <a href="#" class="nav-link">Instellingen</a>
+  </nav>
+
+  <main class="page">
+    <section class="summary-row">
+      <div class="summary-card income">
+        <div class="summary-label">Inkomsten</div>
+        <div id="totalIncome" class="summary-amount">€ 0,00</div>
       </div>
-      <div class="card">
-        <h2>Uitgaven</h2>
-        <p id="totalExpenses" class="amount negative">€ 0,00</p>
+      <div class="summary-card expense">
+        <div class="summary-label">Uitgaven</div>
+        <div id="totalExpenses" class="summary-amount">€ 0,00</div>
       </div>
-      <div class="card">
-        <h2>Resultaat</h2>
-        <p id="result" class="amount neutral">€ 0,00</p>
+      <div class="summary-card result">
+        <div class="summary-label">Resultaat</div>
+        <div id="result" class="summary-amount">€ 0,00</div>
       </div>
     </section>
 
-    <section class="layout">
-      <section class="form-card">
-        <h2>Nieuwe transactie</h2>
-        <form id="txForm">
-          <label>
-            Datum
+    <section class="content-grid">
+      <section class="panel">
+        <div class="panel-header">
+          <h2>Nieuwe transactie</h2>
+          <span class="panel-caption">Vul hieronder inkomsten en uitgaven in</span>
+        </div>
+        <form id="txForm" class="tx-form">
+          <div class="field">
+            <label for="date">Datum</label>
             <input type="date" id="date" required />
-          </label>
+          </div>
 
-          <label>
-            Omschrijving
+          <div class="field">
+            <label for="description">Omschrijving</label>
             <input type="text" id="description" placeholder="Bijv. factuur klant" required />
-          </label>
+          </div>
 
-          <label>
-            Bedrag (in euro)
+          <div class="field">
+            <label for="amount">Bedrag (in euro)</label>
             <input type="number" id="amount" step="0.01" required />
-          </label>
+          </div>
 
-          <label>
-            Type
+          <div class="field">
+            <label for="type">Type</label>
             <select id="type">
               <option value="income">Inkomst</option>
               <option value="expense">Uitgave</option>
             </select>
-          </label>
+          </div>
 
-          <button type="submit">Opslaan</button>
+          <div class="form-actions">
+            <button type="submit">Opslaan</button>
+          </div>
         </form>
         <p id="formMessage" class="message"></p>
       </section>
 
-      <section class="table-card">
-        <h2>Transacties</h2>
-        <table>
-          <thead>
-            <tr>
-              <th>Datum</th>
-              <th>Omschrijving</th>
-              <th>Type</th>
-              <th>Bedrag</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody id="txTableBody">
-            <!-- rows via JS -->
-          </tbody>
-        </table>
+      <section class="panel">
+        <div class="panel-header">
+          <h2>Transacties 2025</h2>
+          <span class="panel-caption">Overzicht van alle mutaties</span>
+        </div>
+        <div class="table-wrapper">
+          <table>
+            <thead>
+              <tr>
+                <th>Datum</th>
+                <th>Omschrijving</th>
+                <th>Type</th>
+                <th class="amount-col">Bedrag</th>
+                <th class="action-col"></th>
+              </tr>
+            </thead>
+            <tbody id="txTableBody">
+              <!-- Rijen via JavaScript -->
+            </tbody>
+          </table>
+        </div>
       </section>
     </section>
   </main>
 
-  <footer class="footer">
-    <small>Data wordt opgeslagen als JSON-bestand in de container (map <code>/app/data</code>).</small>
+  <footer class="app-footer">
+    <div>Data wordt opgeslagen als JSON-bestand in deze container (<code>/app/data/transactions.json</code>).</div>
+    <div class="footer-right">1 container &mdash; geen externe database nodig.</div>
   </footer>
 
   <script src="/app.js"></script>
