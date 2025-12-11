@@ -328,15 +328,7 @@ function renderTable(transactions) {
   tbody.innerHTML = '';
 
   if (!transactions.length) {
-    const row = document.createElement('tr');
-    const cell = document.createElement('td');
-    // Update the colspan to 6 because we now have an extra column for categorie
-    cell.colSpan = 6;
-    cell.textContent = 'Nog geen data voor dit tabblad';
-    cell.style.textAlign = 'center';
-    cell.style.color = '#6b7280';
-    row.appendChild(cell);
-    tbody.appendChild(row);
+    // Geen lege melding meer: laat de tabel gewoon leeg voor views zonder transacties.
     return;
   }
 
@@ -450,7 +442,6 @@ function updateWvTable(summary) {
     }
   }
 
-  // Maak de tabel leeg en vul opnieuw.
   tbody.innerHTML = '';
 
   let totalIncome = 0;
@@ -475,8 +466,9 @@ function updateWvTable(summary) {
     tbody.appendChild(tr);
   }
 
-  // Totaalregel onderaan
   const result = totalIncome - totalExpenses;
+
+  // Totaalregel
   const trTotal = document.createElement('tr');
   trTotal.classList.add('total-row');
 
@@ -494,7 +486,7 @@ function updateWvTable(summary) {
   trTotal.appendChild(tdTotalProfit);
   tbody.appendChild(trTotal);
 
-  // Resultaat (winst/verlies) als aparte regel
+  // Resultaatregel
   const trResult = document.createElement('tr');
   trResult.classList.add('subtotal-row');
 
