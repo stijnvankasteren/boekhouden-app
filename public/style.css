@@ -129,6 +129,23 @@ body {
   color: var(--red);
 }
 
+/*
+ * Layout edit mode styles.  When layout editing is enabled via the settings,
+ * navigation links and panels become draggable.  These styles provide a
+ * dashed border and move cursor to indicate their draggable state.  The
+ * .layout-edit-actions container is hidden by default and becomes visible
+ * during edit mode.
+ */
+.layout-edit-mode .top-nav .nav-link,
+.layout-edit-mode .content-grid > .panel {
+  cursor: move;
+  border: 1px dashed var(--border-strong);
+}
+
+.layout-edit-actions.hidden {
+  display: none;
+}
+
 .content-grid {
   display: grid;
   grid-template-columns: minmax(0, 1.2fr) minmax(0, 2fr);

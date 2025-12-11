@@ -4,5 +4,17 @@
   "vatEnabled": false,
   "vatRate": 0.21,
   "themeColor": "#2563eb",
-  "customCss": ""
+  "customCss": "",
+  "layout": {
+    "navOrder": [
+      "dashboard",
+      "factuur",
+      "income",
+      "expense"
+    ],
+    "panelOrder": [
+      "table",
+      "form"
+    ]
+  }
 }

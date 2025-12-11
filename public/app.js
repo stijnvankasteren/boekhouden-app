@@ -8,6 +8,11 @@ let lastData = {
 // throughout the UI to adapt text (e.g. displaying the chosen year).
 let currentSettings = null;
 
+// Layout editing state and drag references
+let isLayoutEditMode = false;
+let draggedNavItem = null;
+let draggedPanelItem = null;
+
 const sheetCache = {};
 
 // Utility to lighten a hex colour by mixing it with white.  Used for
@@ -82,6 +87,9 @@ async function loadSettings() {
     if (brandTitle) brandTitle.textContent = settings.company || brandTitle.textContent;
     if (brandSubtitle) brandSubtitle.textContent = 'Jaar ' + (settings.year || new Date().getFullYear()) + ' — Simpele webversie';
     applyTheme(settings);
+
+    // Apply layout ordering
+    applyLayoutFromSettings();
   } catch (e) {
     console.error('Fout bij laden settings:', e);
   }
@@ -232,6 +240,203 @@ function updateWvTable(summary) {
   rows[0].children[1].textContent = formatCurrency(summary.totalIncome);
   rows[1].children[1].textContent = formatCurrency(summary.totalExpenses);
   rows[2].children[1].textContent = formatCurrency(summary.result);
+}
+
+// Apply the stored layout from settings by reordering navigation links and panels.
+function applyLayoutFromSettings() {
+  if (!currentSettings || !currentSettings.layout) return;
+  const { navOrder, panelOrder } = currentSettings.layout;
+  // Reorder navigation links
+  if (Array.isArray(navOrder)) {
+    const navContainer = document.querySelector('.top-nav');
+    if (navContainer) {
+      const links = Array.from(navContainer.children);
+      navOrder.forEach((view) => {
+        const el = links.find((l) => l.dataset && l.dataset.view === view);
+        if (el) {
+          navContainer.appendChild(el);
+        }
+      });
+    }
+  }
+  // Reorder panels inside the content grid
+  if (Array.isArray(panelOrder)) {
+    const grid = document.querySelector('.content-grid');
+    if (grid) {
+      const panels = Array.from(grid.children);
+      panelOrder.forEach((id) => {
+        const panel = panels.find((p) => p.getAttribute('data-panel-id') === id);
+        if (panel) {
+          grid.appendChild(panel);
+        }
+      });
+    }
+  }
+}
+
+// Enable layout edit mode: make nav links and panels draggable and show save button
+function enableLayoutEditMode() {
+  if (isLayoutEditMode) return;
+  isLayoutEditMode = true;
+  document.body.classList.add('layout-edit-mode');
+  // Show layout save button
+  const editActions = document.querySelector('.layout-edit-actions');
+  if (editActions) editActions.classList.remove('hidden');
+  // Make nav links draggable
+  const navLinks = document.querySelectorAll('.top-nav .nav-link');
+  navLinks.forEach((el) => {
+    el.setAttribute('draggable', 'true');
+  });
+  const navContainer = document.querySelector('.top-nav');
+  if (navContainer) {
+    navContainer.addEventListener('dragstart', navDragStart);
+    navContainer.addEventListener('dragover', navDragOver);
+    navContainer.addEventListener('drop', navDrop);
+  }
+  // Make panels draggable
+  const panels = document.querySelectorAll('.content-grid > .panel');
+  panels.forEach((p) => {
+    p.setAttribute('draggable', 'true');
+  });
+  const grid = document.querySelector('.content-grid');
+  if (grid) {
+    grid.addEventListener('dragstart', panelDragStart);
+    grid.addEventListener('dragover', panelDragOver);
+    grid.addEventListener('drop', panelDrop);
+  }
+}
+
+// Disable layout edit mode: remove draggable behaviour and hide save button
+function disableLayoutEditMode() {
+  if (!isLayoutEditMode) return;
+  isLayoutEditMode = false;
+  document.body.classList.remove('layout-edit-mode');
+  // Hide layout save button
+  const editActions = document.querySelector('.layout-edit-actions');
+  if (editActions) editActions.classList.add('hidden');
+  // Remove draggable attributes and listeners
+  const navLinks = document.querySelectorAll('.top-nav .nav-link');
+  navLinks.forEach((el) => {
+    el.removeAttribute('draggable');
+  });
+  const navContainer = document.querySelector('.top-nav');
+  if (navContainer) {
+    navContainer.removeEventListener('dragstart', navDragStart);
+    navContainer.removeEventListener('dragover', navDragOver);
+    navContainer.removeEventListener('drop', navDrop);
+  }
+  const panels = document.querySelectorAll('.content-grid > .panel');
+  panels.forEach((p) => {
+    p.removeAttribute('draggable');
+  });
+  const grid = document.querySelector('.content-grid');
+  if (grid) {
+    grid.removeEventListener('dragstart', panelDragStart);
+    grid.removeEventListener('dragover', panelDragOver);
+    grid.removeEventListener('drop', panelDrop);
+  }
+  draggedNavItem = null;
+  draggedPanelItem = null;
+}
+
+// Toggle layout edit mode when the user clicks the button
+function toggleLayoutEditMode() {
+  if (isLayoutEditMode) {
+    disableLayoutEditMode();
+  } else {
+    enableLayoutEditMode();
+  }
+}
+
+// Save the current layout order to the backend settings
+async function saveLayoutChanges() {
+  try {
+    const navOrder = Array.from(document.querySelectorAll('.top-nav .nav-link')).map((el) => el.dataset.view);
+    const panelOrder = Array.from(document.querySelectorAll('.content-grid > .panel')).map((el) => el.getAttribute('data-panel-id'));
+    const payload = { layout: { navOrder, panelOrder } };
+    const res = await fetch('/api/settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const msgEl = document.getElementById('layoutSaveMessage');
+    if (!res.ok) {
+      if (msgEl) {
+        msgEl.textContent = 'Fout bij opslaan van lay-out';
+        msgEl.className = 'message error';
+      }
+      return;
+    }
+    const data = await res.json();
+    // Update current settings with new layout
+    if (data && data.settings && data.settings.layout) {
+      if (!currentSettings) currentSettings = {};
+      currentSettings.layout = data.settings.layout;
+    }
+    if (msgEl) {
+      msgEl.textContent = 'Lay-out opgeslagen';
+      msgEl.className = 'message ok';
+    }
+    // Exit edit mode after saving
+    disableLayoutEditMode();
+  } catch (e) {
+    console.error('Fout bij opslaan van layout:', e);
+    const msgEl = document.getElementById('layoutSaveMessage');
+    if (msgEl) {
+      msgEl.textContent = 'Fout bij opslaan van lay-out';
+      msgEl.className = 'message error';
+    }
+  }
+}
+
+// Drag and drop handlers for nav reordering
+function navDragStart(e) {
+  const target = e.target.closest('.nav-link');
+  if (!target) return;
+  draggedNavItem = target;
+  e.dataTransfer.effectAllowed = 'move';
+}
+function navDragOver(e) {
+  e.preventDefault();
+}
+function navDrop(e) {
+  e.preventDefault();
+  const target = e.target.closest('.nav-link');
+  if (!target || !draggedNavItem || target === draggedNavItem) return;
+  const navContainer = target.parentElement;
+  const items = Array.from(navContainer.children);
+  const dragIndex = items.indexOf(draggedNavItem);
+  const targetIndex = items.indexOf(target);
+  if (dragIndex < targetIndex) {
+    navContainer.insertBefore(draggedNavItem, target.nextSibling);
+  } else {
+    navContainer.insertBefore(draggedNavItem, target);
+  }
+}
+
+// Drag and drop handlers for panel reordering
+function panelDragStart(e) {
+  const target = e.target.closest('.panel');
+  if (!target) return;
+  draggedPanelItem = target;
+  e.dataTransfer.effectAllowed = 'move';
+}
+function panelDragOver(e) {
+  e.preventDefault();
+}
+function panelDrop(e) {
+  e.preventDefault();
+  const target = e.target.closest('.panel');
+  if (!target || !draggedPanelItem || target === draggedPanelItem) return;
+  const grid = target.parentElement;
+  const items = Array.from(grid.children);
+  const dragIndex = items.indexOf(draggedPanelItem);
+  const targetIndex = items.indexOf(target);
+  if (dragIndex < targetIndex) {
+    grid.insertBefore(draggedPanelItem, target.nextSibling);
+  } else {
+    grid.insertBefore(draggedPanelItem, target);
+  }
 }
 
 function makeSheetEditable(root) {
@@ -625,4 +830,20 @@ window.addEventListener('DOMContentLoaded', () => {
   loadSettings().then(() => {
     reload();
   });
+
+  // Attach layout editing buttons if they exist
+  const toggleLayoutBtn = document.getElementById('toggleLayoutEditBtn');
+  if (toggleLayoutBtn) {
+    toggleLayoutBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      toggleLayoutEditMode();
+    });
+  }
+  const saveLayoutBtn = document.getElementById('saveLayoutConfigBtn');
+  if (saveLayoutBtn) {
+    saveLayoutBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      saveLayoutChanges();
+    });
+  }
 });

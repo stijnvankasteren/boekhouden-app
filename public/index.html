@@ -49,7 +49,7 @@
     </section>
 
     <section class="content-grid">
-      <section class="panel">
+      <section class="panel" data-panel-id="form">
         <div class="panel-header">
           <h2>Nieuwe transactie</h2>
           <span class="panel-caption">Vul hieronder inkomsten en uitgaven in</span>
@@ -85,7 +85,7 @@
         <p id="formMessage" class="message"></p>
       </section>
 
-      <section class="panel">
+      <section class="panel" data-panel-id="table">
         <div class="panel-header">
           <h2>Transacties 2025</h2>
           <span class="panel-caption">Overzicht van alle mutaties.</span>
@@ -501,6 +501,14 @@
         <label for="settings-notes">Interne notities</label>
         <textarea id="settings-notes" rows="3" placeholder="Bijv. bijzonderheden voor dit jaar."></textarea>
       </div>
+
+      <div class="field">
+        <button type="button" id="toggleLayoutEditBtn">Lay-out bewerken</button>
+      </div>
+      <div class="field layout-edit-actions hidden">
+        <button type="button" id="saveLayoutConfigBtn">Lay-out opslaan</button>
+      </div>
+      <p id="layoutSaveMessage" class="message"></p>
       <p class="sheet-note">
         Deze instellingen worden samen met de rest van de pagina opgeslagen als je op
         <strong>Wijzigingen opslaan</strong> klikt.

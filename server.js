@@ -39,7 +39,11 @@ function initStorage() {
       vatEnabled: true,
       vatRate: 0.21,
       themeColor: '#2563eb',
-      customCss: ''
+      customCss: '',
+      layout: {
+        navOrder: null,
+        panelOrder: null,
+      },
     };
     fs.writeFileSync(SETTINGS_FILE, JSON.stringify(defaultSettings, null, 2), 'utf8');
   }
@@ -192,7 +196,12 @@ function calculateSummary(list, settings) {
 function readSettings() {
   try {
     const raw = fs.readFileSync(SETTINGS_FILE, 'utf8');
-    return JSON.parse(raw);
+    const data = JSON.parse(raw);
+    // Ensure layout property exists for backwards compatibility
+    if (typeof data.layout !== 'object' || !data.layout) {
+      data.layout = { navOrder: null, panelOrder: null };
+    }
+    return data;
   } catch (e) {
     console.error('Error reading settings:', e);
     return {
@@ -202,6 +211,10 @@ function readSettings() {
       vatRate: 0.21,
       themeColor: '#2563eb',
       customCss: '',
+      layout: {
+        navOrder: null,
+        panelOrder: null,
+      },
     };
   }
 }
@@ -372,6 +385,11 @@ function handleApi(req, res) {
               typeof data.customCss === 'string'
                 ? data.customCss
                 : current.customCss,
+            // Preserve layout configuration if provided, otherwise keep current layout
+            layout:
+              typeof data.layout === 'object' && data.layout
+                ? Object.assign({}, current.layout || {}, data.layout)
+                : current.layout,
           });
           if (!writeSettings(newSettings)) {
             return sendJson(res, 500, { ok: false, error: 'Kon instellingen niet opslaan' });
