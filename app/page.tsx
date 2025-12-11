@@ -53,7 +53,7 @@ async function getDashboardData(year: number): Promise<DashboardData> {
   }
 }
 
-ns runtime in de browser gebruikt.
+// ns runtime in de browser gebruikt.
 
 export default async function Dashboard({
   searchParams,
