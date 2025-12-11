@@ -1,4 +1,4 @@
-version: '3.8'
+version: "3.8"
 
 services:
   boekhouding-db:
@@ -26,8 +26,8 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - NODE_ENV=production
       - DATABASE_URL=mysql://boekhouding:boekhouding-password@boekhouding-db:3306/boekhouding-db
+      - NODE_ENV=development
 
 volumes:
   db_data:
