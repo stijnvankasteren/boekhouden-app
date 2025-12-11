@@ -940,12 +940,6 @@ function applyView() {
         'Algemene instellingen voor je administratie.';
       txs = [];
       break;
-    case 'disclaimer':
-      rightTitle.textContent = 'Disclaimer';
-      rightCaption.textContent =
-        'Dit is een hulpmiddel en geen officiële boekhoudsoftware.';
-      txs = [];
-      break;
     default:
       rightTitle.textContent = 'Transacties ' + yearText;
       rightCaption.textContent = 'Overzicht van alle mutaties (' + yearText + ').';
@@ -964,8 +958,7 @@ function applyView() {
     'wvbalans',
     'btw',
     'settings',
-    'disclaimer',
-  ];
+      ];
 
   if (sheetViews.includes(currentView)) {
     if (sheet) sheet.style.display = '';
