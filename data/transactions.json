@@ -14,5 +14,14 @@
     "amount": 242,
     "type": "expense",
     "createdAt": "2025-12-11T18:39:20.861Z"
+  },
+  {
+    "id": "1765479924939",
+    "date": "2025-12-01",
+    "description": "Test Trans",
+    "amount": 100,
+    "type": "income",
+    "category": "Test",
+    "createdAt": "2025-12-11T19:05:24.939Z"
   }
 ]

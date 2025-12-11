@@ -10,10 +10,10 @@
   <header class="app-header">
     <div class="brand">
       <div class="brand-title">SVK Beheer Holding B.V.</div>
-      <div class="brand-subtitle">Jaar 2025 &mdash; Simpele webversie</div>
+      <div class="brand-subtitle">Doorlopende boekhouding &mdash; Simpele webversie</div>
     </div>
     <div class="brand-meta">
-      <span class="tag">Layout gebaseerd op Excel 2025</span>
+      <span class="tag">Layout gebaseerd op Excel</span>
     </div>
   </header>
 
@@ -33,6 +33,13 @@
   </nav>
 
   <main class="page">
+    <!--
+      De samenvattingsregel toont de totalen voor inkomsten, uitgaven en resultaat.
+      Daaronder staat een filter waarmee je het jaar kunt kiezen waarvoor de
+      berekening wordt getoond. Deze keuzelijst wordt gevuld via JavaScript op
+      basis van de aanwezige transacties. Standaard wordt 'Alle jaren'
+      geselecteerd zodat je een doorlopend overzicht krijgt.
+    -->
     <section class="summary-row">
       <div class="summary-card income">
         <div class="summary-label">Inkomsten</div>
@@ -47,6 +54,10 @@
         <div id="result" class="summary-amount">€ 0,00</div>
       </div>
     </section>
+    <div class="year-filter">
+      <label for="yearFilter">Periode:</label>
+      <select id="yearFilter"></select>
+    </div>
 
     <section class="content-grid">
       <section class="panel" data-panel-id="form">
@@ -78,6 +89,18 @@
             </select>
           </div>
 
+          <!-- Categorie selecteert een categorie die hoort bij de gekozen transactie.
+               De lijst van categorieën wordt dynamisch geladen vanuit de
+               instellingen (categorieënpagina).  De inhoud van deze select
+               wordt via JavaScript gevuld en aangepast aan het gekozen
+               transactietype. -->
+          <div class="field">
+            <label for="category">Categorie</label>
+            <select id="category">
+              <!-- Opties worden via JavaScript toegevoegd -->
+            </select>
+          </div>
+
           <div class="form-actions">
             <button type="submit">Opslaan</button>
           </div>
@@ -87,7 +110,7 @@
 
       <section class="panel" data-panel-id="table">
         <div class="panel-header">
-          <h2>Transacties 2025</h2>
+        <h2>Transacties</h2>
           <span class="panel-caption">Overzicht van alle mutaties.</span>
         </div>
         <div class="table-wrapper">
@@ -97,6 +120,7 @@
                 <th>Datum</th>
                 <th>Omschrijving</th>
                 <th>Type</th>
+                <th>Categorie</th>
                 <th class="amount-col">Bedrag</th>
                 <th class="action-col"></th>
               </tr>
@@ -476,7 +500,7 @@
     <div class="sheet-section">
       <div class="field">
         <label for="settings-year">Boekjaar</label>
-        <input id="settings-year" type="number" min="2000" max="2100" value="2025" />
+        <input id="settings-year" type="number" min="2000" max="2100" />
       </div>
       <div class="field">
         <label for="settings-company">Bedrijfsnaam</label>

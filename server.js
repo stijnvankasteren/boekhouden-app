@@ -40,6 +40,14 @@ function initStorage() {
       vatRate: 0.21,
       themeColor: '#2563eb',
       customCss: '',
+      // Categorieën beschikbaar in de administratie.  Elke categorie heeft
+      // een naam, een type (inkomst/uitgave) en optionele opmerkingen.  De
+      // standaardset bevat enkele voorbeelden.  Gebruikers kunnen deze
+      // lijst uitbreiden of aanpassen via het categorieën-tabblad.
+      categories: [
+        { name: 'Omzet', type: 'inkomst', notes: 'Algemene omzet' },
+        { name: 'Kantoorkosten', type: 'uitgave', notes: '' },
+      ],
       layout: {
         navOrder: null,
         panelOrder: null,
@@ -201,6 +209,13 @@ function readSettings() {
     if (typeof data.layout !== 'object' || !data.layout) {
       data.layout = { navOrder: null, panelOrder: null };
     }
+    // Ensure categories array exists for backwards compatibility
+    if (!Array.isArray(data.categories)) {
+      data.categories = [
+        { name: 'Omzet', type: 'inkomst', notes: 'Algemene omzet' },
+        { name: 'Kantoorkosten', type: 'uitgave', notes: '' },
+      ];
+    }
     return data;
   } catch (e) {
     console.error('Error reading settings:', e);
@@ -270,6 +285,8 @@ function handleApi(req, res) {
           description: data.description || '',
           amount: Number(data.amount) || 0,
           type: data.type === 'expense' ? 'expense' : 'income',
+          // category is optional; ensure it's a string
+          category: typeof data.category === 'string' ? data.category : '',
           createdAt: now.toISOString(),
         };
 
@@ -390,6 +407,11 @@ function handleApi(req, res) {
               typeof data.layout === 'object' && data.layout
                 ? Object.assign({}, current.layout || {}, data.layout)
                 : current.layout,
+            // Categories: expect an array of objects {name, type, notes}.  If invalid
+            // or not provided, keep current categories.
+            categories: Array.isArray(data.categories)
+              ? data.categories
+              : current.categories,
           });
           if (!writeSettings(newSettings)) {
             return sendJson(res, 500, { ok: false, error: 'Kon instellingen niet opslaan' });

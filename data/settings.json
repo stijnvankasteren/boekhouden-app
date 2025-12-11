@@ -16,5 +16,17 @@
       "table",
       "form"
     ]
-  }
+  },
+  "categories": [
+    {
+      "name": "Test",
+      "type": "inkomst",
+      "notes": ""
+    },
+    {
+      "name": "Kosten",
+      "type": "uitgave",
+      "notes": ""
+    }
+  ]
 }

@@ -4,6 +4,18 @@ let lastData = {
   summary: { totalIncome: 0, totalExpenses: 0, result: 0 },
 };
 
+// Huidig geselecteerde jaar voor de weergave.  'all' betekent dat alle
+// transacties worden meegenomen.  De lijst van beschikbare jaren wordt
+// dynamisch gevuld op basis van de aanwezige transacties.
+let currentYearFilter = 'all';
+
+// Laatste samenvatting voor de gefilterde transacties.  Deze wordt
+// geüpdatet telkens wanneer de jaarfilter verandert of wanneer transacties
+// opnieuw worden geladen.  Met deze variabele kan de winst/verlies en
+// btw-tabellen worden bijgewerkt zonder opnieuw te rekenen in verschillende
+// functies.
+let lastFilteredSummary = null;
+
 // The currently loaded settings.  Updated whenever loadSettings runs.  Used
 // throughout the UI to adapt text (e.g. displaying the chosen year).
 let currentSettings = null;
@@ -14,6 +26,41 @@ let draggedNavItem = null;
 let draggedPanelItem = null;
 
 const sheetCache = {};
+
+/**
+ * Vul het select-element voor categorieën (in het formulier) met de
+ * categorieën uit de instellingen.  De keuzelijst past zich aan op basis
+ * van het geselecteerde transactietype: alleen categorieën met type
+ * 'inkomst' worden getoond voor inkomsten, en categorieën met type
+ * 'uitgave' voor uitgaven.  Wanneer er geen categorieën beschikbaar zijn
+ * wordt een lege lijst getoond.
+ */
+function populateCategorySelect() {
+  const categorySelect = document.getElementById('category');
+  const typeSelect = document.getElementById('type');
+  if (!categorySelect || !typeSelect) return;
+  // Bepaal huidig type (income of expense)
+  const currentType = typeSelect.value === 'expense' ? 'uitgave' : 'inkomst';
+  const categories = (currentSettings && Array.isArray(currentSettings.categories))
+    ? currentSettings.categories
+    : [];
+  // Filter categorieën op type
+  const filtered = categories.filter((c) => c && c.type === currentType);
+  // Maak de select leeg
+  categorySelect.innerHTML = '';
+  // Voeg een lege optie toe zodat categorie optioneel is
+  const emptyOpt = document.createElement('option');
+  emptyOpt.value = '';
+  emptyOpt.textContent = '- kies -';
+  categorySelect.appendChild(emptyOpt);
+  // Voeg opties toe voor elke categorie
+  filtered.forEach((c) => {
+    const opt = document.createElement('option');
+    opt.value = c.name;
+    opt.textContent = c.name;
+    categorySelect.appendChild(opt);
+  });
+}
 
 // Utility to lighten a hex colour by mixing it with white.  Used for
 // generating a "soft" variant of the theme colour for backgrounds.  The
@@ -85,11 +132,17 @@ async function loadSettings() {
     const brandTitle = document.querySelector('.brand-title');
     const brandSubtitle = document.querySelector('.brand-subtitle');
     if (brandTitle) brandTitle.textContent = settings.company || brandTitle.textContent;
-    if (brandSubtitle) brandSubtitle.textContent = 'Jaar ' + (settings.year || new Date().getFullYear()) + ' — Simpele webversie';
+    // Gebruik een neutrale ondertitel zonder specifiek jaar zodat het duidelijk is
+    // dat de boekhouding doorlopend is.  Het geselecteerde jaar wordt elders in
+    // de interface weergegeven.
+    if (brandSubtitle) brandSubtitle.textContent = 'Doorlopende boekhouding — Simpele webversie';
     applyTheme(settings);
 
     // Apply layout ordering
     applyLayoutFromSettings();
+
+    // Werk de categorieënselect bij op basis van de geladen instellingen
+    populateCategorySelect();
   } catch (e) {
     console.error('Fout bij laden settings:', e);
   }
@@ -127,6 +180,126 @@ function updateSummary(summary) {
   else resultEl.classList.add('neutral');
 }
 
+/**
+ * Bepaal de unieke jaren in de lijst van transacties.  Een jaar wordt
+ * afgeleid uit het datumveld (eerste vier karakters).  Transacties zonder
+ * geldige datum worden genegeerd.  Retourneert een lijst in aflopende
+ * volgorde (recentste jaar eerst).
+ * @param {Array} list Transactielijst
+ * @returns {string[]} Array met jaren
+ */
+function extractYears(list) {
+  const years = new Set();
+  for (const tx of list) {
+    if (!tx || !tx.date) continue;
+    const y = String(tx.date).substring(0, 4);
+    if (/^\d{4}$/.test(y)) years.add(y);
+  }
+  return Array.from(years).sort((a, b) => b.localeCompare(a));
+}
+
+/**
+ * Vul de keuzelijst voor het jaarfilter met beschikbare jaren en een
+ * standaardoptie voor alle jaren.  Wanneer de huidige waarde niet meer
+ * beschikbaar is (bijv. er zijn geen transacties meer voor dat jaar) wordt
+ * automatisch 'all' geselecteerd.
+ */
+function populateYearFilter() {
+  const select = document.getElementById('yearFilter');
+  if (!select) return;
+  const years = extractYears(lastData.transactions || []);
+  // Leeg de lijst
+  select.innerHTML = '';
+  // Voeg standaard optie toe
+  const optAll = document.createElement('option');
+  optAll.value = 'all';
+  optAll.textContent = 'Alle jaren';
+  select.appendChild(optAll);
+  years.forEach((y) => {
+    const opt = document.createElement('option');
+    opt.value = y;
+    opt.textContent = y;
+    select.appendChild(opt);
+  });
+  // Zorg dat de huidige selectie nog bestaat, anders reset naar 'all'
+  if (!years.includes(currentYearFilter) && currentYearFilter !== 'all') {
+    currentYearFilter = 'all';
+  }
+  select.value = currentYearFilter;
+}
+
+/**
+ * Geef de transacties terug die horen bij het huidige jaarfilter.  Wanneer
+ * currentYearFilter op 'all' staat worden alle transacties geleverd.  Anders
+ * worden alleen transacties met een datum die begint met het gekozen jaar
+ * geretourneerd.
+ * @returns {Array} Gefilterde transacties
+ */
+function getFilteredTransactions() {
+  if (currentYearFilter === 'all') return lastData.transactions || [];
+  const prefix = String(currentYearFilter) + '-';
+  return (lastData.transactions || []).filter((tx) => tx.date && tx.date.startsWith(prefix));
+}
+
+/**
+ * Voer een lokale berekening van de samenvatting uit voor een lijst
+ * transacties.  Dit dupliceert de logica van calculateSummary aan de
+ * serverzijde, maar hier kunnen we een subset van transacties doorgeven
+ * (bijv. per jaar).  Er wordt gebruik gemaakt van de huidige
+ * instellingen om btw correct te verwerken.
+ * @param {Array} list Gefilterde transactielijst
+ * @param {Object} settings Settings met vatEnabled en vatRate
+ * @returns {Object} Samenvatting met totalen en btw
+ */
+function calculateClientSummary(list, settings) {
+  const cfg = settings || currentSettings || {};
+  const vatEnabled = !!cfg.vatEnabled;
+  const vatRate = vatEnabled ? Number(cfg.vatRate) || 0 : 0;
+  let income = 0;
+  let expenses = 0;
+  let vatOnIncome = 0;
+  let vatOnExpenses = 0;
+  for (const tx of list || []) {
+    const amount = Number(tx.amount) || 0;
+    if (tx.type === 'expense') {
+      expenses += amount;
+      if (vatRate > 0) {
+        const vatPart = amount - amount / (1 + vatRate);
+        vatOnExpenses += vatPart;
+      }
+    } else {
+      income += amount;
+      if (vatRate > 0) {
+        const vatPart = amount - amount / (1 + vatRate);
+        vatOnIncome += vatPart;
+      }
+    }
+  }
+  const result = income - expenses;
+  const vatToPay = vatOnIncome - vatOnExpenses;
+  return {
+    totalIncome: income,
+    totalExpenses: expenses,
+    result,
+    vatOnIncome,
+    vatOnExpenses,
+    vatToPay,
+  };
+}
+
+/**
+ * Bereken de samenvatting voor de huidige jaarfilter en werk de UI bij.
+ * Update zowel de samenvatting in het dashboard als de W&V- en btw-tabellen.
+ */
+function updateSummaryDisplay() {
+  const filtered = getFilteredTransactions();
+  const summary = calculateClientSummary(filtered, currentSettings);
+  lastFilteredSummary = summary;
+  updateSummary(summary);
+  updateWvTable(summary);
+  updateBtwTable(summary);
+}
+
 function setLayoutForView(view) {
   const summaryRow = document.querySelector('.summary-row');
   const grid = document.querySelector('.content-grid');
@@ -155,7 +328,8 @@ function renderTable(transactions) {
   if (!transactions.length) {
     const row = document.createElement('tr');
     const cell = document.createElement('td');
-    cell.colSpan = 5;
+    // Update the colspan to 6 because we now have an extra column for categorie
+    cell.colSpan = 6;
     cell.textContent = 'Nog geen data voor dit tabblad';
     cell.style.textAlign = 'center';
     cell.style.color = '#6b7280';
@@ -180,6 +354,11 @@ function renderTable(transactions) {
     typeCell.className =
       tx.type === 'expense' ? 'tx-type-expense' : 'tx-type-income';
     row.appendChild(typeCell);
+
+    // Category cell: show selected category or '-' when none
+    const catCell = document.createElement('td');
+    catCell.textContent = tx.category ? tx.category : '-';
+    row.appendChild(catCell);
 
     const amountCell = document.createElement('td');
     amountCell.textContent = formatCurrency(tx.amount);
@@ -530,6 +709,30 @@ function setSheetContent(view) {
   if (tpl && tpl.content) {
     const fragment = tpl.content.cloneNode(true);
     container.appendChild(fragment);
+    // Als we naar het categorieën-tabblad gaan, vul dan de tabel met de
+    // bestaande categorieën uit de instellingen (currentSettings.categories).
+    if (view === 'categories' && currentSettings && Array.isArray(currentSettings.categories)) {
+      const table = container.querySelector('#category-table');
+      if (table) {
+        const tbody = table.querySelector('tbody');
+        if (tbody) {
+          tbody.innerHTML = '';
+          currentSettings.categories.forEach((cat) => {
+            const tr = document.createElement('tr');
+            const tdName = document.createElement('td');
+            tdName.textContent = cat.name || '';
+            const tdType = document.createElement('td');
+            tdType.textContent = cat.type || '';
+            const tdNotes = document.createElement('td');
+            tdNotes.textContent = cat.notes || '';
+            tr.appendChild(tdName);
+            tr.appendChild(tdType);
+            tr.appendChild(tdNotes);
+            tbody.appendChild(tr);
+          });
+        }
+      }
+    }
     makeSheetEditable(container);
   } else {
     const p = document.createElement('p');
@@ -609,6 +812,42 @@ async function saveCurrentSheet() {
       } catch (e) {
         console.error('Fout bij opslaan van instellingen:', e);
       }
+    } else if (currentView === 'categories') {
+      // Wanneer we in het categorieën-tabblad zitten, verzamel dan de
+      // categorieën uit de tabel en sla deze op in de instellingen.
+      const table = container.querySelector('#category-table');
+      const newCategories = [];
+      if (table) {
+        const rows = table.querySelectorAll('tbody tr');
+        rows.forEach((row) => {
+          const cells = row.querySelectorAll('td');
+          if (cells.length >= 2) {
+            const name = cells[0].textContent.trim();
+            const type = cells[1].textContent.trim();
+            const notes = cells[2] ? cells[2].textContent.trim() : '';
+            if (name) {
+              newCategories.push({ name, type, notes });
+            }
+          }
+        });
+      }
+      try {
+        const resSettings = await fetch('/api/settings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ categories: newCategories }),
+        });
+        if (!resSettings.ok) {
+          throw new Error('Status ' + resSettings.status);
+        }
+        // Na het opslaan van categorieën, ververs de instellingen zodat
+        // categorieën op andere plekken (bijv. formulier) worden bijgewerkt
+        await loadSettings();
+        // Werk de categorie-select meteen bij
+        populateCategorySelect();
+      } catch (e) {
+        console.error('Fout bij opslaan van categorieën:', e);
+      }
     }
 
     msg.textContent = 'Opgeslagen';
@@ -629,14 +868,19 @@ function applyView() {
   const rightTitle = titleEls[1] || titleEls[0];
   const rightCaption = captionEls[1] || captionEls[0];
 
-  let txs = lastData.transactions;
+  // Begin met transacties die horen bij het huidige jaarfilter.  Hierdoor
+  // tonen we alleen transacties voor het geselecteerde jaar in de tabel en
+  // hoeft de gebruiker niet steeds tussen verschillende boekjaren te
+  // wisselen.  Voor 'all' worden alle transacties getoond.
+  let txs = getFilteredTransactions();
 
   setLayoutForView(currentView);
 
+  const yearText = currentYearFilter === 'all' ? 'alle jaren' : currentYearFilter;
   switch (currentView) {
     case 'dashboard':
-      rightTitle.textContent = 'Transacties ' + (currentSettings ? currentSettings.year : '2025');
-      rightCaption.textContent = 'Overzicht van alle mutaties (Dashboard).';
+      rightTitle.textContent = 'Transacties ' + yearText;
+      rightCaption.textContent = 'Overzicht van alle mutaties (' + yearText + ').';
       break;
     case 'factuur':
       rightTitle.textContent = 'Factuur';
@@ -646,12 +890,14 @@ function applyView() {
       break;
     case 'income':
       rightTitle.textContent = 'Verkopen & Inkomsten';
-      rightCaption.textContent = 'Alle inkomsten-transacties in 2025.';
+      rightCaption.textContent =
+        'Alle inkomsten-transacties ' + (yearText === 'alle jaren' ? '' : 'in ' + yearText + '.');
       txs = txs.filter((t) => t.type !== 'expense');
       break;
     case 'expense':
       rightTitle.textContent = 'Inkopen & Uitgaven';
-      rightCaption.textContent = 'Alle uitgaven-transacties in 2025.';
+      rightCaption.textContent =
+        'Alle uitgaven-transacties ' + (yearText === 'alle jaren' ? '' : 'in ' + yearText + '.');
       txs = txs.filter((t) => t.type === 'expense');
       break;
     case 'categories':
@@ -680,19 +926,17 @@ function applyView() {
       break;
     case 'wvbalans':
       rightTitle.textContent = 'Winst & Verlies / Balans';
-      rightCaption.textContent =
-        'Overzicht van W&V en balans (waarden uit dit webbestand).';
+      rightCaption.textContent = 'Overzicht van W&V en balans (' + yearText + ').';
       txs = [];
-      // Fill the W&V/balans table using the latest summary
-      updateWvTable(lastData.summary);
+      // Vul de W&V/balans tabel met de gefilterde samenvatting
+      updateWvTable(lastFilteredSummary || lastData.summary);
       break;
     case 'btw':
       rightTitle.textContent = 'Btw-aangifte';
-      rightCaption.textContent =
-        'Vul hier je btw-overzicht in zoals in het Excel-tabblad.';
+      rightCaption.textContent = 'Overzicht btw (' + yearText + ').';
       txs = [];
-      // Update the VAT overview table using the latest summary
-      updateBtwTable(lastData.summary);
+      // Update the VAT overview table using the gefilterde samenvatting
+      updateBtwTable(lastFilteredSummary || lastData.summary);
       break;
     case 'settings':
       rightTitle.textContent = 'Instellingen';
@@ -707,8 +951,8 @@ function applyView() {
       txs = [];
       break;
     default:
-      rightTitle.textContent = 'Transacties ' + (currentSettings ? currentSettings.year : '2025');
-      rightCaption.textContent = 'Overzicht van alle mutaties.';
+      rightTitle.textContent = 'Transacties ' + yearText;
+      rightCaption.textContent = 'Overzicht van alle mutaties (' + yearText + ').';
       break;
   }
 
@@ -733,8 +977,16 @@ async function reload() {
       summary:
         data.summary || { totalIncome: 0, totalExpenses: 0, result: 0 },
     };
+    // Update the year filter based on the loaded transactions.  This will
+    // repopulate the dropdown and ensure the currently selected year is
+    // preserved if possible.
+    populateYearFilter();
+    // Update the view (table and captions) based on the filtered transactions.
     applyView();
-    updateSummary(lastData.summary);
+    // Compute and display the summary for the current year filter.  This
+    // updates the summary cards, W&V table and BTW table.
+    updateSummaryDisplay();
+    populateCategorySelect();
   } catch (err) {
     console.error(err);
     const msg = document.getElementById('formMessage');
@@ -751,6 +1003,7 @@ async function onSubmit(event) {
   const description = document.getElementById('description').value;
   const amount = document.getElementById('amount').value;
   const type = document.getElementById('type').value;
+  const category = document.getElementById('category') ? document.getElementById('category').value : '';
 
   const msg = document.getElementById('formMessage');
   if (msg) {
@@ -762,7 +1015,7 @@ async function onSubmit(event) {
     const res = await fetch('/api/transactions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ date, description, amount, type }),
+      body: JSON.stringify({ date, description, amount, type, category }),
     });
 
     if (!res.ok) {
@@ -799,6 +1052,16 @@ window.addEventListener('DOMContentLoaded', () => {
     form.addEventListener('submit', onSubmit);
   }
 
+  // Wanneer het type (inkomst/uitgave) wordt gewijzigd, past de
+  // categorie-selectie zich automatisch aan zodat alleen de relevante
+  // categorieën (inkomst of uitgave) worden getoond.
+  const typeSelect = document.getElementById('type');
+  if (typeSelect) {
+    typeSelect.addEventListener('change', () => {
+      populateCategorySelect();
+    });
+  }
+
   const saveSheetBtn = document.getElementById('saveSheetBtn');
   if (saveSheetBtn) {
     saveSheetBtn.addEventListener('click', () => {
@@ -830,6 +1093,19 @@ window.addEventListener('DOMContentLoaded', () => {
   loadSettings().then(() => {
     reload();
   });
+
+  // Koppel de jaarfilter aan een change-handler zodat bij wijzigen van het
+  // geselecteerde jaar de transacties, samenvatting en tabellen opnieuw
+  // worden berekend.  De handler past de huidige jaarfilter aan en roept
+  // updateSummaryDisplay en applyView aan.
+  const yearSelect = document.getElementById('yearFilter');
+  if (yearSelect) {
+    yearSelect.addEventListener('change', (ev) => {
+      currentYearFilter = ev.target.value || 'all';
+      updateSummaryDisplay();
+      applyView();
+    });
+  }
 
   // Attach layout editing buttons if they exist
   const toggleLayoutBtn = document.getElementById('toggleLayoutEditBtn');
