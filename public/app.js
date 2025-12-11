@@ -15,6 +15,7 @@ let currentYearFilter = 'all';
 // btw-tabellen worden bijgewerkt zonder opnieuw te rekenen in verschillende
 // functies.
 let lastFilteredSummary = null;
+let lastFilteredTransactions = [];
 
 // The currently loaded settings.  Updated whenever loadSettings runs.  Used
 // throughout the UI to adapt text (e.g. displaying the chosen year).
@@ -295,6 +296,7 @@ function updateSummaryDisplay() {
   const filtered = getFilteredTransactions();
   const summary = calculateClientSummary(filtered, currentSettings);
   lastFilteredSummary = summary;
+  lastFilteredTransactions = filtered;
   updateSummary(summary);
   updateWvTable(summary);
   updateBtwTable(summary);
@@ -326,7 +328,15 @@ function renderTable(transactions) {
   tbody.innerHTML = '';
 
   if (!transactions.length) {
-    // Geen lege melding: laat het lichaam gewoon leeg voor een strakkere look.
+    const row = document.createElement('tr');
+    const cell = document.createElement('td');
+    // Update the colspan to 6 because we now have an extra column for categorie
+    cell.colSpan = 6;
+    cell.textContent = 'Nog geen data voor dit tabblad';
+    cell.style.textAlign = 'center';
+    cell.style.color = '#6b7280';
+    row.appendChild(cell);
+    tbody.appendChild(row);
     return;
   }
 
@@ -383,22 +393,37 @@ function renderTable(transactions) {
 // amounts excluding VAT and the VAT amounts themselves.  When VAT is not
 // enabled the values will be zero.
 function updateBtwTable(summary) {
-  const table = document.getElementById('btw-table');
-  if (!table || !summary) return;
-  const rows = table.querySelectorAll('tbody tr');
-  if (rows.length < 3) return;
+  if (!summary) return;
+
   const exclIncome = summary.totalIncome - summary.vatOnIncome;
   const exclExpenses = summary.totalExpenses - summary.vatOnExpenses;
-  // Row 0: omzet hoog tarief
-  rows[0].children[1].textContent = formatCurrency(exclIncome);
-  rows[0].children[2].textContent = formatCurrency(summary.vatOnIncome);
-  // Row 1: omzet laag tarief (not used in this simple version)
-  rows[1].children[1].textContent = formatCurrency(0);
-  rows[1].children[2].textContent = formatCurrency(0);
-  // Row 2: voorbelasting (VAT on expenses)
-  rows[2].children[1].textContent = formatCurrency(exclExpenses);
-  rows[2].children[2].textContent = formatCurrency(summary.vatOnExpenses);
+  const vatIncome = summary.vatOnIncome;
+  const vatExpenses = summary.vatOnExpenses;
+  const netVat = vatIncome - vatExpenses;
+
+  // Hoofdblok (rubrieken 1a, 5a, 5b, totaal)
+  const elOmzetExcl = document.getElementById('btw-omzet-excl');
+  const elOmzetVat = document.getElementById('btw-omzet-vat');
+  const elCostsVat = document.getElementById('btw-costs-vat');
+  const elNet = document.getElementById('btw-net');
+
+  if (elOmzetExcl) elOmzetExcl.textContent = formatCurrency(exclIncome);
+  if (elOmzetVat) elOmzetVat.textContent = formatCurrency(vatIncome);
+  if (elCostsVat) elCostsVat.textContent = formatCurrency(vatExpenses);
+  if (elNet) elNet.textContent = formatCurrency(netVat);
+
+  // Blok 'Volgens de boekhouding' – eenvoudige weergave op basis van dezelfde
+  // bedragen. In een echte boekhouding zouden dit de saldi van de rekeningen
+  // 1500, 1520 en 1560 zijn.
+  const elBooksPayable = document.getElementById('btw-books-payable');
+  const elBooksInput = document.getElementById('btw-books-input');
+  const elBooksNet = document.getElementById('btw-books-net');
+
+  if (elBooksPayable) elBooksPayable.textContent = formatCurrency(vatIncome);
+  if (elBooksInput) elBooksInput.textContent = formatCurrency(-vatExpenses);
+  if (elBooksNet) elBooksNet.textContent = formatCurrency(netVat);
 }
+
 
 // Update the winst & verlies / balans table with totals from the summary.  The
 // table is expected to have at least three rows: totale omzet, totaal
@@ -406,12 +431,93 @@ function updateBtwTable(summary) {
 function updateWvTable(summary) {
   const table = document.getElementById('wv-table');
   if (!table || !summary) return;
-  const rows = table.querySelectorAll('tbody tr');
-  if (rows.length < 3) return;
-  rows[0].children[1].textContent = formatCurrency(summary.totalIncome);
-  rows[1].children[1].textContent = formatCurrency(summary.totalExpenses);
-  rows[2].children[1].textContent = formatCurrency(summary.result);
+  const tbody = table.querySelector('tbody');
+  if (!tbody) return;
+
+  // Groepeer per categorie op basis van de gefilterde transacties.
+  const map = new Map();
+  for (const tx of lastFilteredTransactions || []) {
+    const key = tx.category && tx.category.trim() ? tx.category.trim() : '-';
+    if (!map.has(key)) {
+      map.set(key, { income: 0, expense: 0 });
+    }
+    const bucket = map.get(key);
+    const amount = Number(tx.amount) || 0;
+    if (tx.type === 'expense') {
+      bucket.expense += amount;
+    } else {
+      bucket.income += amount;
+    }
+  }
+
+  // Maak de tabel leeg en vul opnieuw.
+  tbody.innerHTML = '';
+
+  let totalIncome = 0;
+  let totalExpenses = 0;
+
+  for (const [name, bucket] of map.entries()) {
+    const tr = document.createElement('tr');
+    const tdName = document.createElement('td');
+    const tdLoss = document.createElement('td');
+    const tdProfit = document.createElement('td');
+
+    tdName.textContent = name;
+    tdLoss.textContent = bucket.expense ? formatCurrency(bucket.expense) : '';
+    tdProfit.textContent = bucket.income ? formatCurrency(bucket.income) : '';
+
+    totalIncome += bucket.income;
+    totalExpenses += bucket.expense;
+
+    tr.appendChild(tdName);
+    tr.appendChild(tdLoss);
+    tr.appendChild(tdProfit);
+    tbody.appendChild(tr);
+  }
+
+  // Totaalregel onderaan
+  const result = totalIncome - totalExpenses;
+  const trTotal = document.createElement('tr');
+  trTotal.classList.add('total-row');
+
+  const tdLabel = document.createElement('td');
+  tdLabel.textContent = 'Totaal';
+
+  const tdTotalLoss = document.createElement('td');
+  tdTotalLoss.textContent = totalExpenses ? formatCurrency(totalExpenses) : '';
+
+  const tdTotalProfit = document.createElement('td');
+  tdTotalProfit.textContent = totalIncome ? formatCurrency(totalIncome) : '';
+
+  trTotal.appendChild(tdLabel);
+  trTotal.appendChild(tdTotalLoss);
+  trTotal.appendChild(tdTotalProfit);
+  tbody.appendChild(trTotal);
+
+  // Resultaat (winst/verlies) als aparte regel
+  const trResult = document.createElement('tr');
+  trResult.classList.add('subtotal-row');
+
+  const tdResLabel = document.createElement('td');
+  tdResLabel.textContent = 'Resultaat (winst / verlies)';
+
+  const tdResLoss = document.createElement('td');
+  const tdResProfit = document.createElement('td');
+
+  if (result < 0) {
+    tdResLoss.textContent = formatCurrency(Math.abs(result));
+    tdResProfit.textContent = '';
+  } else {
+    tdResLoss.textContent = '';
+    tdResProfit.textContent = formatCurrency(result);
+  }
+
+  trResult.appendChild(tdResLabel);
+  trResult.appendChild(tdResLoss);
+  trResult.appendChild(tdResProfit);
+  tbody.appendChild(trResult);
 }
+
 
 // Apply the stored layout from settings by reordering navigation links and panels.
 function applyLayoutFromSettings() {
@@ -711,15 +817,12 @@ function setSheetContent(view) {
           tbody.innerHTML = '';
           currentSettings.categories.forEach((cat) => {
             const tr = document.createElement('tr');
-            const tdGroup = document.createElement('td');
-            tdGroup.textContent = cat.group || '';
             const tdName = document.createElement('td');
             tdName.textContent = cat.name || '';
             const tdType = document.createElement('td');
             tdType.textContent = cat.type || '';
             const tdNotes = document.createElement('td');
             tdNotes.textContent = cat.notes || '';
-            tr.appendChild(tdGroup);
             tr.appendChild(tdName);
             tr.appendChild(tdType);
             tr.appendChild(tdNotes);
@@ -817,12 +920,11 @@ async function saveCurrentSheet() {
         rows.forEach((row) => {
           const cells = row.querySelectorAll('td');
           if (cells.length >= 2) {
-            const group = cells[0].textContent.trim();
-            const name = cells[1] ? cells[1].textContent.trim() : '';
-            const type = cells[2] ? cells[2].textContent.trim() : '';
-            const notes = cells[3] ? cells[3].textContent.trim() : '';
+            const name = cells[0].textContent.trim();
+            const type = cells[1].textContent.trim();
+            const notes = cells[2] ? cells[2].textContent.trim() : '';
             if (name) {
-              newCategories.push({ group, name, type, notes });
+              newCategories.push({ name, type, notes });
             }
           }
         });
@@ -940,6 +1042,12 @@ function applyView() {
         'Algemene instellingen voor je administratie.';
       txs = [];
       break;
+    case 'disclaimer':
+      rightTitle.textContent = 'Disclaimer';
+      rightCaption.textContent =
+        'Dit is een hulpmiddel en geen officiële boekhoudsoftware.';
+      txs = [];
+      break;
     default:
       rightTitle.textContent = 'Transacties ' + yearText;
       rightCaption.textContent = 'Overzicht van alle mutaties (' + yearText + ').';
@@ -958,7 +1066,8 @@ function applyView() {
     'wvbalans',
     'btw',
     'settings',
-      ];
+    'disclaimer',
+  ];
 
   if (sheetViews.includes(currentView)) {
     if (sheet) sheet.style.display = '';

@@ -19,7 +19,6 @@
 
   <nav class="top-nav">
     <button type="button" class="nav-link active" data-view="dashboard">Dashboard</button>
-    <button type="button" class="nav-link" data-view="settings">Instellingen</button>
     <button type="button" class="nav-link" data-view="factuur">Factuur</button>
     <button type="button" class="nav-link" data-view="income">Verkopen &amp; Inkomsten</button>
     <button type="button" class="nav-link" data-view="expense">Inkopen &amp; Uitgaven</button>
@@ -29,6 +28,8 @@
     <button type="button" class="nav-link" data-view="relations">Relaties</button>
     <button type="button" class="nav-link" data-view="wvbalans">W&amp;V en Balans</button>
     <button type="button" class="nav-link" data-view="btw">Btw-aangifte</button>
+    <button type="button" class="nav-link" data-view="settings">Instellingen</button>
+    <button type="button" class="nav-link" data-view="disclaimer">Disclaimer</button>
   </nav>
 
   <main class="page">
@@ -247,31 +248,27 @@
   </template>
 
   <template id="tpl-categories">
-    <h3 class="sheet-title">Categorieën / grootboekrekeningen</h3>
+    <h3 class="sheet-title">Categorieën beheren</h3>
     <div class="sheet-section">
       <p class="sheet-note">
-        Deze tabel werkt zoals in je Excel: per regel een grootboekrekening met daarvóór de
-        <em>groep</em> (ACTIVA, PASSIVA, KOSTEN, OMZET). Deze groepen komen in een aparte kolom
-        naast de rekening te staan.
+        Hier kun je zelf categorieën aanmaken die je straks kunt gebruiken in je administratie
+        (bijvoorbeeld <em>Omzet</em>, <em>Kantoorkosten</em>, <em>Autokosten</em>, enz.).
       </p>
       <table class="sheet-table" id="category-table">
         <thead>
           <tr>
-            <th>Groep (ACTIVA / PASSIVA / KOSTEN / OMZET)</th>
-            <th>Categorie / rekening</th>
+            <th>Categorie</th>
             <th>Type (inkomst / uitgave)</th>
             <th>Opmerkingen</th>
           </tr>
         </thead>
         <tbody>
           <tr>
-            <td>OMZET</td>
-            <td>Omzet NL</td>
+            <td>Omzet</td>
             <td>inkomst</td>
             <td>Algemene omzet</td>
           </tr>
           <tr>
-            <td>KOSTEN</td>
             <td>Kantoorkosten</td>
             <td>uitgave</td>
             <td></td>
@@ -279,7 +276,7 @@
         </tbody>
       </table>
       <div class="sheet-actions">
-        <button type="button" data-action="add-row" data-target="category-table">+ Rekening toevoegen</button>
+        <button type="button" data-action="add-row" data-target="category-table">+ Categorie toevoegen</button>
       </div>
       <p class="sheet-note">
         Je kunt cellen direct aanpassen. Vergeet niet op <strong>Wijzigingen opslaan</strong> te klikken.
@@ -408,48 +405,20 @@
       <p class="sheet-note">
         Dit tabblad is een samenvatting van je resultaat (winst / verlies) en de balans aan het einde
         van het jaar. De bedragen voor omzet, uitgaven en resultaat worden automatisch berekend op
-        basis van je transacties en het geselecteerde jaar. De regels voor eigen vermogen kun je
-        zelf invullen.
+        basis van je transacties en het geselecteerde jaar.
       </p>
       <table class="sheet-table" id="wv-table">
         <thead>
           <tr>
-            <th>Post</th>
-            <th>Bedrag</th>
-            <th>Opmerkingen</th>
+            <th>Categorie</th>
+            <th>Verlies</th>
+            <th>Winst</th>
           </tr>
         </thead>
         <tbody>
-          <tr>
-            <td>Totale omzet</td>
-            <td></td>
-            <td></td>
-          </tr>
-          <tr>
-            <td>Totaal uitgaven</td>
-            <td></td>
-            <td></td>
-          </tr>
-          <tr>
-            <td>Resultaat (winst / verlies)</td>
-            <td></td>
-            <td></td>
-          </tr>
-          <tr>
-            <td>Eigen vermogen begin jaar</td>
-            <td></td>
-            <td></td>
-          </tr>
-          <tr>
-            <td>Eigen vermogen eind jaar</td>
-            <td></td>
-            <td></td>
-          </tr>
+          <!-- Wordt volledig automatisch gevuld door updateWvTable() -->
         </tbody>
       </table>
-      <div class="sheet-actions">
-        <button type="button" data-action="add-row" data-target="wv-table">+ Extra post toevoegen</button>
-      </div>
     </div>
   </template>
 
@@ -457,47 +426,70 @@
     <h3 class="sheet-title">Btw-aangifte</h3>
     <div class="sheet-section">
       <p class="sheet-note">
-        Dit overzicht toont automatisch je btw‑bedragen op basis van alle transacties in het
-        geselecteerde jaar en het ingestelde btw‑tarief. Je kunt extra regels toevoegen voor
-        eigen notities als je wilt.
+        Dit overzicht toont automatisch je btw-bedragen op basis van alle transacties in het
+        geselecteerde jaar en het ingestelde btw-tarief.
       </p>
-      <table class="sheet-table" id="btw-table">
+
+      <h4>Btw-overzicht</h4>
+      <table class="sheet-table">
         <thead>
           <tr>
+            <th>Rubriek</th>
             <th>Omschrijving</th>
-            <th>Bedrag excl. btw</th>
-            <th>Btw‑bedrag</th>
-            <th>Opmerkingen</th>
+            <th>Bedrag</th>
           </tr>
         </thead>
         <tbody>
           <tr>
-            <td>Omzet hoog tarief</td>
-            <td></td>
-            <td></td>
-            <td></td>
+            <td>1a</td>
+            <td>Leveringen/diensten belast met hoog tarief (omzet excl. btw)</td>
+            <td id="btw-omzet-excl"></td>
           </tr>
           <tr>
-            <td>Omzet laag tarief</td>
-            <td></td>
-            <td></td>
-            <td></td>
+            <td>5a</td>
+            <td>Verschuldigde omzetbelasting (btw over omzet)</td>
+            <td id="btw-omzet-vat"></td>
           </tr>
           <tr>
-            <td>Voorbelasting (btw op inkoop)</td>
+            <td>5b</td>
+            <td>Voorbelasting (btw over kosten)</td>
+            <td id="btw-costs-vat"></td>
+          </tr>
+          <tr class="total-row">
             <td></td>
-            <td></td>
-            <td></td>
+            <td>Te betalen (+) / Terug te vragen (-)</td>
+            <td id="btw-net"></td>
           </tr>
         </tbody>
       </table>
-      <div class="sheet-actions">
-        <button type="button" data-action="add-row" data-target="btw-table">+ Regel toevoegen</button>
-      </div>
-      <p class="sheet-note">
-        Let op: dit is alleen een hulpmiddel. De daadwerkelijke aangifte doe je altijd in het
-        portaal van de Belastingdienst.
-      </p>
+
+      <h4>Volgens de boekhouding</h4>
+      <table class="sheet-table">
+        <thead>
+          <tr>
+            <th>Rekening</th>
+            <th>Omschrijving</th>
+            <th>Saldo</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>1500</td>
+            <td>Btw af te dragen hoog</td>
+            <td id="btw-books-payable"></td>
+          </tr>
+          <tr>
+            <td>1520</td>
+            <td>Voorbelasting</td>
+            <td id="btw-books-input"></td>
+          </tr>
+          <tr class="total-row">
+            <td>1560</td>
+            <td>Btw betaald/ontvangen (netto)</td>
+            <td id="btw-books-net"></td>
+          </tr>
+        </tbody>
+      </table>
     </div>
   </template>
 
@@ -546,7 +538,24 @@
     </div>
   </template>
 
-  
+  <template id="tpl-disclaimer">
+    <h3 class="sheet-title">Disclaimer</h3>
+    <div class="sheet-section">
+      <p class="sheet-note">
+        Deze webapp is bedoeld als eenvoudig hulpmiddel om je eigen administratie bij te houden,
+        gebaseerd op je oorspronkelijke Excel‑bestand.
+      </p>
+      <ul class="sheet-list">
+        <li>Het is <strong>geen officiële boekhoudsoftware</strong>.</li>
+        <li>Je blijft zelf verantwoordelijk voor een juiste aangifte en administratie.</li>
+        <li>Controleer belangrijke cijfers altijd met je boekhouder of accountant.</li>
+      </ul>
+      <p class="sheet-note">
+        Door deze app te gebruiken ga je ermee akkoord dat er geen garanties worden gegeven over de
+        juistheid of volledigheid van de berekeningen.
+      </p>
+    </div>
+  </template>
 </div>
   <script src="/app.js"></script>
 </body>

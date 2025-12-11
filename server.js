@@ -45,8 +45,8 @@ function initStorage() {
       // standaardset bevat enkele voorbeelden.  Gebruikers kunnen deze
       // lijst uitbreiden of aanpassen via het categorieën-tabblad.
       categories: [
-        { group: 'OMZET',  name: 'Omzet NL',      type: 'inkomst', notes: 'Algemene omzet' },
-        { group: 'KOSTEN', name: 'Kantoorkosten', type: 'uitgave', notes: '' },
+        { name: 'Omzet', type: 'inkomst', notes: 'Algemene omzet' },
+        { name: 'Kantoorkosten', type: 'uitgave', notes: '' },
       ],
       layout: {
         navOrder: null,
@@ -212,8 +212,8 @@ function readSettings() {
     // Ensure categories array exists for backwards compatibility
     if (!Array.isArray(data.categories)) {
       data.categories = [
-        { group: 'OMZET',  name: 'Omzet NL',      type: 'inkomst', notes: 'Algemene omzet' },
-        { group: 'KOSTEN', name: 'Kantoorkosten', type: 'uitgave', notes: '' },
+        { name: 'Omzet', type: 'inkomst', notes: 'Algemene omzet' },
+        { name: 'Kantoorkosten', type: 'uitgave', notes: '' },
       ];
     }
     return data;
