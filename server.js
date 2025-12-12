@@ -284,6 +284,8 @@ function handleApi(req, res) {
           date: data.date || now.toISOString().slice(0, 10),
           description: data.description || '',
           amount: Number(data.amount) || 0,
+          // VAT rate in percent (e.g. 21, 9, 0). Optional.
+          vatRate: Number(data.vatRate) || 0,
           type: data.type === 'expense' ? 'expense' : 'income',
           // category is optional; ensure it's a string
           category: typeof data.category === 'string' ? data.category : '',

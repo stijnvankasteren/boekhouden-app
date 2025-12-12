@@ -164,84 +164,6 @@ function formatCurrency(amount) {
   }).format(amount || 0);
 }
 
-// Format a YYYY-MM-DD date string into DD-MM-YYYY (Excel-style).
-function formatDateNL(dateStr) {
-  if (!dateStr) return '';
-  const s = String(dateStr);
-  // Accept both YYYY-MM-DD and ISO strings
-  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
-  if (m) return `${m[3]}-${m[2]}-${m[1]}`;
-  return s;
-}
-
-function formatVatRate(rate) {
-  if (rate === null || rate === undefined || rate === '') return '';
-  const n = Number(rate);
-  if (Number.isNaN(n)) return String(rate);
-  // rate can be 0.21 or 21
-  const perc = n > 1 ? n : n * 100;
-  return `${parseFloat(perc.toFixed(2))}%`;
-}
-
-// Configure the transaction table columns based on the current view.
-// - For dashboard: compact table
-// - For income/expense: Excel-like columns (as in the spreadsheet)
-function setTransactionTableLayout(view) {
-  const table = document.getElementById('txTable');
-  const headRow = document.getElementById('txTableHeadRow');
-  if (!table || !headRow) return;
-
-  const isExcel = view === 'income' || view === 'expense';
-  table.classList.toggle('excel-like', isExcel);
-
-  headRow.innerHTML = '';
-
-  if (!isExcel) {
-    // Default/compact
-    const cols = [
-      { label: 'Datum' },
-      { label: 'Omschrijving' },
-      { label: 'Type' },
-      { label: 'Categorie' },
-      { label: 'Bedrag', cls: 'amount-col' },
-      { label: '', cls: 'action-col' },
-    ];
-    cols.forEach((c) => {
-      const th = document.createElement('th');
-      th.textContent = c.label;
-      if (c.cls) th.className = c.cls;
-      headRow.appendChild(th);
-    });
-    return;
-  }
-
-  // Excel-like columns
-  const cols = [
-    { label: 'Datum' },
-    { label: 'Soort' },
-    { label: 'Factuurnr' },
-    { label: 'Omschrijving' },
-    { label: 'Relatie' },
-    { label: 'Bedrag excl. bt', cls: 'amount-col' },
-    { label: 'Btw-tarief' },
-    { label: 'Status' },
-    { label: 'Categorie' },
-    { label: 'Btw-bedrag', cls: 'amount-col' },
-    { label: 'Bedrag incl. bt', cls: 'amount-col' },
-    { label: 'Jaar' },
-    { label: 'Periode' },
-    { label: 'Controle' },
-    { label: 'Cash flow' },
-    { label: '', cls: 'action-col' },
-  ];
-  cols.forEach((c) => {
-    const th = document.createElement('th');
-    th.textContent = c.label;
-    if (c.cls) th.className = c.cls;
-    headRow.appendChild(th);
-  });
-}
-
 function updateSummary(summary) {
   const incomeEl = document.getElementById('totalIncome');
   const expensesEl = document.getElementById('totalExpenses');
@@ -401,7 +323,6 @@ function setLayoutForView(view) {
 
 function renderTable(transactions) {
   const tbody = document.getElementById('txTableBody');
-  const table = document.getElementById('txTable');
   if (!tbody) return;
 
   tbody.innerHTML = '';
@@ -411,110 +332,48 @@ function renderTable(transactions) {
     return;
   }
 
-  const isExcel = table && table.classList.contains('excel-like');
-
   for (const tx of transactions) {
     const row = document.createElement('tr');
 
-    if (!isExcel) {
-      const dateCell = document.createElement('td');
-      dateCell.textContent = tx.date;
-      row.appendChild(dateCell);
+    const dateCell = document.createElement('td');
+    dateCell.textContent = tx.date;
+    row.appendChild(dateCell);
 
-      const descCell = document.createElement('td');
-      descCell.textContent = tx.description;
-      row.appendChild(descCell);
+    const descCell = document.createElement('td');
+    descCell.textContent = tx.description;
+    row.appendChild(descCell);
 
-      const typeCell = document.createElement('td');
-      typeCell.textContent = tx.type === 'expense' ? 'Uitgave' : 'Inkomst';
-      typeCell.className =
-        tx.type === 'expense' ? 'tx-type-expense' : 'tx-type-income';
-      row.appendChild(typeCell);
+    const typeCell = document.createElement('td');
+    typeCell.textContent = tx.type === 'expense' ? 'Uitgave' : 'Inkomst';
+    typeCell.className =
+      tx.type === 'expense' ? 'tx-type-expense' : 'tx-type-income';
+    row.appendChild(typeCell);
 
-      const catCell = document.createElement('td');
-      catCell.textContent = tx.category ? tx.category : '-';
-      row.appendChild(catCell);
+    // Category cell: show selected category or '-' when none
+    const catCell = document.createElement('td');
+    catCell.textContent = tx.category ? tx.category : '-';
+    row.appendChild(catCell);
 
-      const amountCell = document.createElement('td');
-      amountCell.textContent = formatCurrency(tx.amount);
-      amountCell.style.textAlign = 'right';
-      row.appendChild(amountCell);
+    const amountCell = document.createElement('td');
+    amountCell.textContent = formatCurrency(tx.amount);
+    amountCell.style.textAlign = 'right';
+    row.appendChild(amountCell);
 
-      const actionCell = document.createElement('td');
-      actionCell.className = 'action-col';
-      const btn = document.createElement('button');
-      btn.textContent = 'Verwijderen';
-      btn.style.background = '#ef4444';
-      btn.style.fontSize = '0.75rem';
-      btn.style.padding = '0.25rem 0.5rem';
-      btn.addEventListener('click', async () => {
-        if (!confirm('Transactie verwijderen?')) return;
-        await fetch('/api/transactions/' + encodeURIComponent(tx.id), {
-          method: 'DELETE',
-        });
-        await reload();
+    const actionCell = document.createElement('td');
+    const btn = document.createElement('button');
+    btn.textContent = 'Verwijderen';
+    btn.style.background = '#ef4444';
+    btn.style.fontSize = '0.75rem';
+    btn.style.padding = '0.25rem 0.5rem';
+    btn.addEventListener('click', async () => {
+      if (!confirm('Transactie verwijderen?')) return;
+      await fetch('/api/transactions/' + encodeURIComponent(tx.id), {
+        method: 'DELETE',
       });
-      actionCell.appendChild(btn);
-      row.appendChild(actionCell);
-    } else {
-      // Excel-like row
-      const year = tx.year || (tx.date ? String(tx.date).substring(0, 4) : '');
-      const period = tx.period || (tx.date ? String(tx.date).substring(5, 7) : '');
-      const vatRate = tx.vatRate !== undefined ? tx.vatRate : (currentSettings && currentSettings.vatRate);
-      const vatEnabled = currentSettings ? !!currentSettings.vatEnabled : true;
-      const vr = vatEnabled ? (Number(vatRate) || 0) : 0;
-
-      // Prefer stored excl/vat, otherwise derive from incl
-      const incl = Number(tx.amount) || 0;
-      const excl = (tx.amountExcl !== undefined && tx.amountExcl !== null && tx.amountExcl !== '')
-        ? Number(tx.amountExcl) || 0
-        : (vr > 0 ? incl / (1 + vr) : incl);
-      const vatAmount = (tx.vatAmount !== undefined && tx.vatAmount !== null && tx.vatAmount !== '')
-        ? Number(tx.vatAmount) || 0
-        : (incl - excl);
-
-      const cells = [
-        { v: formatDateNL(tx.date) },
-        { v: tx.soort || '' },
-        { v: tx.factuurnr || '' },
-        { v: tx.description || '' },
-        { v: tx.relatie || '' },
-        { v: formatCurrency(excl), cls: 'amount' },
-        { v: formatVatRate(tx.btwTarief !== undefined ? tx.btwTarief : vr) },
-        { v: tx.status || '' },
-        { v: tx.category || '' },
-        { v: formatCurrency(vatAmount), cls: 'amount' },
-        { v: formatCurrency(incl), cls: 'amount' },
-        { v: year },
-        { v: period },
-        { v: tx.controle || '' },
-        { v: tx.cashFlow ? '1' : '' },
-      ];
-
-      for (const c of cells) {
-        const td = document.createElement('td');
-        td.textContent = c.v;
-        if (c.cls) td.classList.add(c.cls);
-        row.appendChild(td);
-      }
-
-      const actionCell = document.createElement('td');
-      actionCell.className = 'action-col';
-      const btn = document.createElement('button');
-      btn.textContent = 'Verwijderen';
-      btn.style.background = '#ef4444';
-      btn.style.fontSize = '0.75rem';
-      btn.style.padding = '0.25rem 0.5rem';
-      btn.addEventListener('click', async () => {
-        if (!confirm('Transactie verwijderen?')) return;
-        await fetch('/api/transactions/' + encodeURIComponent(tx.id), {
-          method: 'DELETE',
-        });
-        await reload();
-      });
-      actionCell.appendChild(btn);
-      row.appendChild(actionCell);
-    }
+      await reload();
+    });
+    actionCell.appendChild(btn);
+    row.appendChild(actionCell);
 
     tbody.appendChild(row);
   }
@@ -1187,8 +1046,6 @@ function applyView() {
       break;
   }
 
-  // Pas de tabelkolommen aan op basis van het tabblad.
-  setTransactionTableLayout(currentView);
   renderTable(txs);
 
   const sheet = document.getElementById('sheetContent');
@@ -1259,6 +1116,8 @@ async function onSubmit(event) {
   const date = document.getElementById('date').value;
   const description = document.getElementById('description').value;
   const amount = document.getElementById('amount').value;
+  const vatRateEl = document.getElementById('vatRate');
+  const vatRate = vatRateEl ? vatRateEl.value : '0';
   const type = document.getElementById('type').value;
   const category = document.getElementById('category') ? document.getElementById('category').value : '';
 
@@ -1269,43 +1128,10 @@ async function onSubmit(event) {
   }
 
   try {
-    // Voor de Excel-achtige tabbladen slaan we extra velden op zodat
-    // de tabelkolommen overeenkomen met het spreadsheet.
-    const isExcel = currentView === 'income' || currentView === 'expense';
-    const cfg = currentSettings || {};
-    const vatEnabled = !!cfg.vatEnabled;
-    const vr = vatEnabled ? (Number(cfg.vatRate) || 0) : 0;
-    const incl = Number(amount) || 0;
-    const excl = vr > 0 ? incl / (1 + vr) : incl;
-    const vatAmount = incl - excl;
-    const year = date ? String(date).substring(0, 4) : '';
-    const period = date ? String(date).substring(5, 7) : '';
-
-    const payload = {
-      date,
-      description,
-      amount: incl,
-      type,
-      category,
-    };
-    if (isExcel) {
-      payload.soort = payload.soort || 'Overig';
-      payload.factuurnr = payload.factuurnr || '';
-      payload.relatie = payload.relatie || '';
-      payload.status = payload.status || '';
-      payload.controle = payload.controle || '';
-      payload.cashFlow = payload.cashFlow !== undefined ? payload.cashFlow : true;
-      payload.amountExcl = Number(excl.toFixed(2));
-      payload.vatAmount = Number(vatAmount.toFixed(2));
-      payload.btwTarief = vr;
-      payload.year = year;
-      payload.period = period;
-    }
-
     const res = await fetch('/api/transactions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
+      body: JSON.stringify({ date, description, amount, vatRate, type, category }),
     });
 
     if (!res.ok) {

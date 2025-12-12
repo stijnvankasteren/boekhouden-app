@@ -77,8 +77,17 @@
           </div>
 
           <div class="field">
-            <label for="amount">Bedrag (in euro)</label>
+            <label for="amount">Bedrag excl. btw</label>
             <input type="number" id="amount" step="0.01" required />
+          </div>
+
+          <div class="field">
+            <label for="vatRate">Btw-tarief</label>
+            <select id="vatRate">
+              <option value="21">21%</option>
+              <option value="9">9%</option>
+              <option value="0">0%</option>
+            </select>
           </div>
 
           <div class="field">
@@ -114,9 +123,9 @@
           <span class="panel-caption">Overzicht van alle mutaties.</span>
         </div>
         <div class="table-wrapper">
-          <table id="txTable">
+          <table>
             <thead>
-              <tr id="txTableHeadRow">
+              <tr>
                 <th>Datum</th>
                 <th>Omschrijving</th>
                 <th>Type</th>
