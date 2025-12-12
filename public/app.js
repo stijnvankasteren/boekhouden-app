@@ -287,6 +287,17 @@ const sheetCache = {};
  * 'uitgave' voor uitgaven.  Wanneer er geen categorieën beschikbaar zijn
  * wordt een lege lijst getoond.
  */
+
+function normalizeCategoryType(t) {
+  const s = (t || '').toString().trim().toLowerCase();
+  if (!s) return '';
+  if (s === 'income' || s.startsWith('ink')) return 'inkomst';
+  if (s === 'expense' || s.startsWith('uitg') || s.startsWith('kost')) return 'uitgave';
+  // common Dutch variants
+  if (s.includes('omzet') || s.includes('verkoop')) return 'inkomst';
+  return s;
+}
+
 function populateCategorySelect() {
   const categorySelect = document.getElementById('category');
   const typeSelect = document.getElementById('type');
@@ -297,7 +308,7 @@ function populateCategorySelect() {
     ? currentSettings.categories
     : [];
   // Filter categorieën op type
-  const filtered = categories.filter((c) => c && c.type === currentType);
+  const filtered = categories.filter((c) => c && normalizeCategoryType(c.type) === currentType);
   // Maak de select leeg
   categorySelect.innerHTML = '';
   // Voeg een lege optie toe zodat categorie optioneel is
@@ -1378,7 +1389,7 @@ async function saveCurrentSheet() {
           const cells = row.querySelectorAll('td');
           if (cells.length >= 2) {
             const name = cells[0].textContent.trim();
-            const type = cells[1].textContent.trim();
+            const type = normalizeCategoryType(cells[1].textContent.trim());
             const notes = cells[2] ? cells[2].textContent.trim() : '';
             if (name) {
               newCategories.push({ name, type, notes });
