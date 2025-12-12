@@ -23,8 +23,7 @@ let attachmentTxId = null;
 
 // Open a stored data-url attachment reliably.
 // Some browsers block opening long `data:` URLs directly (showing about:blank).
-async 
-function openAttachmentDataUrl(dataUrl, filename) {
+async function openAttachmentDataUrl(dataUrl, filename) {
   // Legacy helper: open attachment in the attachment popup instead of a new tab.
   openAttachmentModal({ id: null, attachmentData: dataUrl, attachmentName: filename || 'Bijlage' }, true);
 }
