@@ -327,7 +327,37 @@
       </form>
     </div>
   </div>
-  <!-- Hidden file input for attachments -->
+  
+  <div id="attModal" class="modal-overlay hidden" aria-hidden="true">
+    <div class="modal modal-wide" role="dialog" aria-modal="true" aria-labelledby="attModalTitle">
+      <div class="modal-header">
+        <h3 id="attModalTitle">Bon / factuur</h3>
+        <button type="button" id="attModalClose" class="icon-btn" aria-label="Sluiten">✕</button>
+      </div>
+      <div class="modal-body">
+        <div id="attModalMeta" class="muted"></div>
+
+        <div id="attModalEmpty" class="att-empty">
+          <div class="att-empty-title">Geen bon gekoppeld</div>
+          <div class="att-dropzone" id="attDropzone">
+            <button type="button" class="btn" id="attSelectBtn">Selecteer</button>
+            <span class="muted">of sleep een nieuwe bon hier naar toe</span>
+          </div>
+        </div>
+
+        <div id="attModalPreview" class="att-preview hidden">
+          <div class="att-preview-actions">
+            <button type="button" class="btn" id="attReplaceBtn">Vervang</button>
+            <button type="button" class="btn btn-danger" id="attRemoveBtn">Verwijder bon</button>
+            <a id="attDownloadLink" class="btn" href="#" download>Download</a>
+          </div>
+          <div class="att-preview-frame" id="attPreviewFrame"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<!-- Hidden file input for attachments -->
   <input id="attachmentInput" type="file" class="hidden" accept="image/*,application/pdf" />
 
   <div id="sheet-templates" style="display:none;">

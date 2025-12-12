@@ -23,29 +23,96 @@ let attachmentTxId = null;
 
 // Open a stored data-url attachment reliably.
 // Some browsers block opening long `data:` URLs directly (showing about:blank).
-async function openAttachmentDataUrl(dataUrl, filename) {
-  if (!dataUrl || typeof dataUrl !== 'string') return;
+async 
+function openAttachmentDataUrl(dataUrl, filename) {
+  // Legacy helper: open attachment in the attachment popup instead of a new tab.
+  openAttachmentModal({ id: null, attachmentData: dataUrl, attachmentName: filename || 'Bijlage' }, true);
+}
 
-  // Must open a window synchronously (user gesture), then navigate it.
-  const w = window.open('about:blank', '_blank', 'noopener');
-  if (!w) {
-    alert('Popup geblokkeerd. Sta popups toe om bijlagen te openen.');
-    return;
+let attachmentModalTxId = null;
+
+function openAttachmentModal(tx, viewOnly = false) {
+  const overlay = document.getElementById('attModal');
+  if (!overlay) return;
+
+  attachmentModalTxId = tx && tx.id ? tx.id : null;
+
+  const meta = document.getElementById('attModalMeta');
+  const title = document.getElementById('attModalTitle');
+  if (title) title.textContent = 'Bon / factuur';
+  if (meta) meta.textContent = tx && tx.description ? tx.description : '';
+
+  const empty = document.getElementById('attModalEmpty');
+  const previewWrap = document.getElementById('attModalPreview');
+  const frame = document.getElementById('attPreviewFrame');
+  const dl = document.getElementById('attDownloadLink');
+  const removeBtn = document.getElementById('attRemoveBtn');
+
+  const has = !!(tx && tx.attachmentData);
+
+  if (empty) empty.classList.toggle('hidden', has);
+  if (previewWrap) previewWrap.classList.toggle('hidden', !has);
+
+  if (frame) frame.innerHTML = '';
+  if (dl) {
+    dl.href = has ? tx.attachmentData : '#';
+    dl.download = (tx && tx.attachmentName) ? tx.attachmentName : 'bijlage';
+    dl.classList.toggle('hidden', !has);
+  }
+  if (removeBtn) removeBtn.classList.toggle('hidden', viewOnly || !has);
+
+  if (has && frame) {
+    const dataUrl = tx.attachmentData;
+    const name = tx.attachmentName || 'Bijlage';
+    const lower = name.toLowerCase();
+    if (lower.endsWith('.pdf') || dataUrl.startsWith('data:application/pdf')) {
+      const iframe = document.createElement('iframe');
+      iframe.src = dataUrl;
+      iframe.title = name;
+      frame.appendChild(iframe);
+    } else {
+      const img = document.createElement('img');
+      img.src = dataUrl;
+      img.alt = name;
+      frame.appendChild(img);
+    }
   }
 
-  try {
-    // Convert data URL -> Blob -> blob: URL (more reliable than data: navigation)
-    const res = await fetch(dataUrl);
-    const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
-    w.location.href = url;
-    if (filename) w.document.title = filename;
-    // Revoke later
-    setTimeout(() => URL.revokeObjectURL(url), 60_000);
-  } catch (e) {
-    // Fallback
-    w.location.href = dataUrl;
+  overlay.classList.remove('hidden');
+  overlay.setAttribute('aria-hidden', 'false');
+}
+
+function closeAttachmentModal() {
+  const overlay = document.getElementById('attModal');
+  if (!overlay) return;
+  overlay.classList.add('hidden');
+  overlay.setAttribute('aria-hidden', 'true');
+  attachmentModalTxId = null;
+}
+
+async function saveAttachmentToTx(txId, file) {
+  if (!txId || !file) return;
+  const dataUrl = await new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(String(r.result || ''));
+    r.onerror = () => reject(new Error('File read failed'));
+    r.readAsDataURL(file);
+  });
+
+  const tx = transactions.find(t => t.id === txId);
+  if (!tx) return;
+  tx.attachmentData = dataUrl;
+  tx.attachmentName = file.name || 'Bijlage';
+
+  await saveTransactions();
+  renderCurrentView();
+  // If drawer is open for this tx, update it
+  if (drawerTx && drawerTx.id === txId) {
+    drawerTx.attachmentData = tx.attachmentData;
+    drawerTx.attachmentName = tx.attachmentName;
+    renderTxDrawer();
   }
+  openAttachmentModal(tx);
 }
 
 // The currently loaded settings.  Updated whenever loadSettings runs.  Used
@@ -434,15 +501,7 @@ function renderTable(transactions) {
     attBtn.textContent = '📎';
     attBtn.title = tx.attachmentData ? 'Bijlage bekijken' : 'Bon/factuur koppelen';
     attBtn.addEventListener('click', (ev) => { ev.stopPropagation();
-      if (tx.attachmentData) {
-        openAttachmentDataUrl(tx.attachmentData, tx.attachmentName);
-        return;
-      }
-      const input = document.getElementById('attachmentInput');
-      if (!input) return;
-      attachmentTxId = tx.id;
-      input.value = '';
-      input.click();
+      openAttachmentModal(tx);
     });
     stack.appendChild(attBtn);
 
@@ -568,7 +627,7 @@ function renderTxDrawer() {
           a.textContent = drawerTx.attachmentName || 'Bijlage openen';
           a.addEventListener('click', (e) => {
             e.preventDefault();
-            openAttachmentDataUrl(drawerTx.attachmentData, drawerTx.attachmentName);
+            openAttachmentModal(drawerTx);
           });
           att.appendChild(a);
         }
@@ -1571,7 +1630,7 @@ window.addEventListener('DOMContentLoaded', () => {
         ev.preventDefault();
         if (!drawerTx) return;
         if (drawerTx.attachmentData) {
-          openAttachmentDataUrl(drawerTx.attachmentData, drawerTx.attachmentName);
+          openAttachmentModal(drawerTx);
           return;
         }
         const input = document.getElementById('attachmentInput');
@@ -1663,11 +1722,13 @@ window.addEventListener('DOMContentLoaded', () => {
     }
 
 // --- Attachment wiring (paperclip) ---
+  
   const attachmentInput = document.getElementById('attachmentInput');
   if (attachmentInput) {
     attachmentInput.addEventListener('change', async () => {
       const file = attachmentInput.files && attachmentInput.files[0];
-      if (!file || !attachmentTxId) return;
+      const txId = attachmentModalTxId || attachmentTxId;
+      if (!file || !txId) return;
 
       // Basic size guard (10 MB)
       if (file.size > 10 * 1024 * 1024) {
@@ -1677,26 +1738,83 @@ window.addEventListener('DOMContentLoaded', () => {
         return;
       }
 
-      const reader = new FileReader();
-      reader.onload = async () => {
-        try {
-          const dataUrl = String(reader.result || '');
-          const res = await fetch('/api/transactions/' + encodeURIComponent(attachmentTxId), {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ attachmentName: file.name, attachmentData: dataUrl }),
-          });
-          if (!res.ok) throw new Error('Upload mislukt');
-          await reload();
-        } catch (e) {
-          console.error(e);
-          alert('Kon bijlage niet koppelen.');
-        } finally {
-          attachmentTxId = null;
-          attachmentInput.value = '';
-        }
-      };
-      reader.readAsDataURL(file);
+      try {
+        await saveAttachmentToTx(txId, file);
+      } catch (e) {
+        console.error(e);
+        alert('Kon bijlage niet koppelen.');
+      } finally {
+        attachmentTxId = null;
+        attachmentInput.value = '';
+      }
     });
   }
+
+  // Attachment popup (open / close / upload / remove)
+  const attCloseBtn = document.getElementById('attModalClose');
+  if (attCloseBtn) attCloseBtn.addEventListener('click', closeAttachmentModal);
+
+  const attOverlay = document.getElementById('attModal');
+  if (attOverlay) {
+    attOverlay.addEventListener('click', (e) => {
+      if (e.target === attOverlay) closeAttachmentModal();
+    });
+  }
+
+  const attSelectBtn = document.getElementById('attSelectBtn');
+  const attReplaceBtn = document.getElementById('attReplaceBtn');
+  if (attSelectBtn) attSelectBtn.addEventListener('click', () => {
+    if (!attachmentModalTxId) return;
+    attachmentTxId = attachmentModalTxId;
+    const input = document.getElementById('attachmentInput');
+    if (!input) return;
+    input.value = '';
+    input.click();
+  });
+  if (attReplaceBtn) attReplaceBtn.addEventListener('click', () => {
+    if (!attachmentModalTxId) return;
+    attachmentTxId = attachmentModalTxId;
+    const input = document.getElementById('attachmentInput');
+    if (!input) return;
+    input.value = '';
+    input.click();
+  });
+
+  const attRemoveBtn = document.getElementById('attRemoveBtn');
+  if (attRemoveBtn) attRemoveBtn.addEventListener('click', async () => {
+    if (!attachmentModalTxId) return;
+    const tx = transactions.find(t => t.id === attachmentModalTxId);
+    if (!tx) return;
+    tx.attachmentData = null;
+    tx.attachmentName = null;
+    await saveTransactions();
+    renderCurrentView();
+    closeAttachmentModal();
+    // If drawer is open for this tx, update it
+    if (drawerTx && drawerTx.id === attachmentModalTxId) {
+      drawerTx.attachmentData = null;
+      drawerTx.attachmentName = null;
+      renderTxDrawer();
+    }
+  });
+
+  const dropzone = document.getElementById('attDropzone');
+  if (dropzone) {
+    const setOver = (on) => dropzone.classList.toggle('dragover', on);
+    dropzone.addEventListener('dragover', (e) => { e.preventDefault(); setOver(true); });
+    dropzone.addEventListener('dragleave', () => setOver(false));
+    dropzone.addEventListener('drop', async (e) => {
+      e.preventDefault(); setOver(false);
+      if (!attachmentModalTxId) return;
+      const file = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+      if (!file) return;
+      try {
+        await saveAttachmentToTx(attachmentModalTxId, file);
+      } catch (err) {
+        console.error(err);
+        alert('Kon bijlage niet koppelen.');
+      }
+    });
+  }
+
 });
