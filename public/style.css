@@ -746,3 +746,7 @@ th {
   border: 0;
   object-fit: contain;
 }
+
+
+/* Dropdown in sheet cells */
+.sheet-table td .cell-select{width:100%; border:1px solid #d7dde6; border-radius:10px; padding:8px 10px; font: inherit; background:#fff;}
