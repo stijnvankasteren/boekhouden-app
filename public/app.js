@@ -559,7 +559,7 @@ function setLayoutForView(view) {
   const tableWrapper = document.querySelector('.table-wrapper');
   if (!summaryRow || !grid) return;
 
-  const isTxView = view === 'dashboard' || view === 'income' || view === 'expense';
+  const isTxView = view === 'dashboard';
 
   if (isTxView) {
     summaryRow.classList.remove('hidden');
@@ -1442,18 +1442,6 @@ function applyView() {
       rightCaption.textContent =
         'Factuurfunctionaliteit is nog niet geïmplementeerd in deze simpele versie.';
       txs = [];
-      break;
-    case 'income':
-      rightTitle.textContent = 'Verkopen & Inkomsten';
-      rightCaption.textContent =
-        'Alle inkomsten-transacties ' + (yearText === 'alle jaren' ? '' : 'in ' + yearText + '.');
-      txs = txs.filter((t) => t.type !== 'expense');
-      break;
-    case 'expense':
-      rightTitle.textContent = 'Inkopen & Uitgaven';
-      rightCaption.textContent =
-        'Alle uitgaven-transacties ' + (yearText === 'alle jaren' ? '' : 'in ' + yearText + '.');
-      txs = txs.filter((t) => t.type === 'expense');
       break;
     case 'categories':
       rightTitle.textContent = 'Categorieën';
