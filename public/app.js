@@ -17,6 +17,10 @@ let currentYearFilter = 'all';
 let lastFilteredSummary = null;
 let lastFilteredTransactions = [];
 
+// Modal / edit state
+let editingTxId = null;
+let attachmentTxId = null;
+
 // The currently loaded settings.  Updated whenever loadSettings runs.  Used
 // throughout the UI to adapt text (e.g. displaying the chosen year).
 let currentSettings = null;
@@ -382,23 +386,95 @@ function renderTable(transactions) {
     row.appendChild(amountInclCell);
 
     const actionCell = document.createElement('td');
-    const btn = document.createElement('button');
-    btn.textContent = 'Verwijderen';
-    btn.style.background = '#ef4444';
-    btn.style.fontSize = '0.75rem';
-    btn.style.padding = '0.25rem 0.5rem';
-    btn.addEventListener('click', async () => {
+    const stack = document.createElement('div');
+    stack.className = 'action-stack';
+
+    // Edit (pencil) button
+    const editBtn = document.createElement('button');
+    editBtn.className = 'icon-btn';
+    editBtn.type = 'button';
+    editBtn.textContent = '✏️';
+    editBtn.title = 'Transactie bewerken';
+    editBtn.addEventListener('click', () => openEditModal(tx));
+    stack.appendChild(editBtn);
+
+    // Attachment (paperclip) button
+    const attBtn = document.createElement('button');
+    attBtn.className = 'icon-btn' + (tx.attachmentData ? ' attached' : '');
+    attBtn.type = 'button';
+    attBtn.textContent = '📎';
+    attBtn.title = tx.attachmentData ? 'Bijlage bekijken' : 'Bon/factuur koppelen';
+    attBtn.addEventListener('click', () => {
+      if (tx.attachmentData) {
+        // Open in a new tab/window (data URL)
+        window.open(tx.attachmentData, '_blank', 'noopener');
+        return;
+      }
+      const input = document.getElementById('attachmentInput');
+      if (!input) return;
+      attachmentTxId = tx.id;
+      input.value = '';
+      input.click();
+    });
+    stack.appendChild(attBtn);
+
+    // Delete button
+    const delBtn = document.createElement('button');
+    delBtn.textContent = 'Verwijderen';
+    delBtn.style.background = '#ef4444';
+    delBtn.style.fontSize = '0.75rem';
+    delBtn.style.padding = '0.25rem 0.5rem';
+    delBtn.addEventListener('click', async () => {
       if (!confirm('Transactie verwijderen?')) return;
       await fetch('/api/transactions/' + encodeURIComponent(tx.id), {
         method: 'DELETE',
       });
       await reload();
     });
-    actionCell.appendChild(btn);
+    stack.appendChild(delBtn);
+
+    actionCell.appendChild(stack);
     row.appendChild(actionCell);
 
     tbody.appendChild(row);
   }
+}
+
+function openEditModal(tx) {
+  const overlay = document.getElementById('txModal');
+  const msg = document.getElementById('txModalMsg');
+  if (!overlay) return;
+
+  editingTxId = tx.id;
+  if (msg) {
+    msg.textContent = '';
+    msg.className = 'message';
+  }
+
+  const dateEl = document.getElementById('txEditDate');
+  const descEl = document.getElementById('txEditDesc');
+  const typeEl = document.getElementById('txEditType');
+  const amountEl = document.getElementById('txEditAmount');
+  const vatEl = document.getElementById('txEditVat');
+  const catEl = document.getElementById('txEditCategory');
+
+  if (dateEl) dateEl.value = tx.date || '';
+  if (descEl) descEl.value = tx.description || '';
+  if (typeEl) typeEl.value = tx.type === 'expense' ? 'expense' : 'income';
+  if (amountEl) amountEl.value = String(Number(tx.amount) || 0);
+  if (vatEl) vatEl.value = String(Number(tx.vatRate ?? 0) || 0);
+  if (catEl) catEl.value = tx.category || '';
+
+  overlay.classList.remove('hidden');
+  overlay.setAttribute('aria-hidden', 'false');
+}
+
+function closeEditModal() {
+  const overlay = document.getElementById('txModal');
+  if (!overlay) return;
+  overlay.classList.add('hidden');
+  overlay.setAttribute('aria-hidden', 'true');
+  editingTxId = null;
 }
 
 // Update the btw-aangifte table based on the computed summary.  The table is
@@ -1258,6 +1334,95 @@ window.addEventListener('DOMContentLoaded', () => {
     saveLayoutBtn.addEventListener('click', (e) => {
       e.preventDefault();
       saveLayoutChanges();
+    });
+  }
+
+  // --- Edit modal wiring ---
+  const modalOverlay = document.getElementById('txModal');
+  const modalClose = document.getElementById('txModalClose');
+  const modalCancel = document.getElementById('txModalCancel');
+  const modalForm = document.getElementById('txModalForm');
+  if (modalClose) modalClose.addEventListener('click', closeEditModal);
+  if (modalCancel) modalCancel.addEventListener('click', closeEditModal);
+  if (modalOverlay) {
+    // Click outside the modal closes it
+    modalOverlay.addEventListener('click', (ev) => {
+      if (ev.target === modalOverlay) closeEditModal();
+    });
+  }
+  if (modalForm) {
+    modalForm.addEventListener('submit', async (ev) => {
+      ev.preventDefault();
+      if (!editingTxId) return;
+      const msg = document.getElementById('txModalMsg');
+      if (msg) {
+        msg.textContent = '';
+        msg.className = 'message';
+      }
+
+      const payload = {
+        date: document.getElementById('txEditDate')?.value,
+        description: document.getElementById('txEditDesc')?.value,
+        type: document.getElementById('txEditType')?.value,
+        amount: document.getElementById('txEditAmount')?.value,
+        vatRate: document.getElementById('txEditVat')?.value,
+        category: document.getElementById('txEditCategory')?.value,
+      };
+
+      try {
+        const res = await fetch('/api/transactions/' + encodeURIComponent(editingTxId), {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        if (!res.ok) throw new Error('Fout bij opslaan');
+        await reload();
+        closeEditModal();
+      } catch (e) {
+        console.error(e);
+        if (msg) {
+          msg.textContent = 'Kon transactie niet opslaan.';
+          msg.className = 'message error';
+        }
+      }
+    });
+  }
+
+  // --- Attachment wiring (paperclip) ---
+  const attachmentInput = document.getElementById('attachmentInput');
+  if (attachmentInput) {
+    attachmentInput.addEventListener('change', async () => {
+      const file = attachmentInput.files && attachmentInput.files[0];
+      if (!file || !attachmentTxId) return;
+
+      // Basic size guard (10 MB)
+      if (file.size > 10 * 1024 * 1024) {
+        alert('Bestand is te groot (max 10 MB).');
+        attachmentTxId = null;
+        attachmentInput.value = '';
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = async () => {
+        try {
+          const dataUrl = String(reader.result || '');
+          const res = await fetch('/api/transactions/' + encodeURIComponent(attachmentTxId), {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ attachmentName: file.name, attachmentData: dataUrl }),
+          });
+          if (!res.ok) throw new Error('Upload mislukt');
+          await reload();
+        } catch (e) {
+          console.error(e);
+          alert('Kon bijlage niet koppelen.');
+        } finally {
+          attachmentTxId = null;
+          attachmentInput.value = '';
+        }
+      };
+      reader.readAsDataURL(file);
     });
   }
 });

@@ -156,6 +156,66 @@
     <div class="footer-right">1 container &mdash; geen externe database nodig.</div>
   </footer>
 
+  <!-- Popup om een transactie te bewerken -->
+  <div id="txModal" class="modal-overlay hidden" aria-hidden="true">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="txModalTitle">
+      <div class="modal-header">
+        <h3 id="txModalTitle">Transactie aanpassen</h3>
+        <button type="button" id="txModalClose" class="icon-btn" aria-label="Sluiten">✕</button>
+      </div>
+      <form id="txModalForm" class="modal-body">
+        <input type="hidden" id="txModalId" />
+
+        <div class="grid-2">
+          <div class="field">
+            <label for="txEditDate">Datum</label>
+            <input id="txEditDate" type="date" required />
+          </div>
+          <div class="field">
+            <label for="txEditType">Type</label>
+            <select id="txEditType" required>
+              <option value="income">Inkomst</option>
+              <option value="expense">Uitgave</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="txEditDesc">Omschrijving</label>
+          <input id="txEditDesc" type="text" required />
+        </div>
+
+        <div class="grid-3">
+          <div class="field">
+            <label for="txEditAmount">Bedrag excl. btw</label>
+            <input id="txEditAmount" type="number" step="0.01" min="0" required />
+          </div>
+          <div class="field">
+            <label for="txEditVat">Btw-tarief</label>
+            <select id="txEditVat">
+              <option value="21">21%</option>
+              <option value="9">9%</option>
+              <option value="0">0%</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="txEditCategory">Categorie</label>
+            <input id="txEditCategory" type="text" placeholder="Bijv. 4940 Accountants..." />
+          </div>
+        </div>
+
+        <div class="modal-actions">
+          <button type="button" id="txModalCancel" class="btn-secondary">Annuleren</button>
+          <button type="submit">Opslaan</button>
+        </div>
+        <p id="txModalMsg" class="message"></p>
+      </form>
+    </div>
+  </div>
+
+  <!-- Hidden file input for attachments -->
+  <input id="attachmentInput" type="file" class="hidden" accept="image/*,application/pdf" />
+
   <div id="sheet-templates" style="display:none;">
   <template id="tpl-dashboard">
     <h3 class="sheet-title">Snelle acties</h3>

@@ -308,6 +308,64 @@ function handleApi(req, res) {
     return;
   }
 
+  // Update an existing transaction (used by the edit popup and attachment).
+  // Expects a JSON body and updates only a safe subset of fields.
+  if (pathname.startsWith('/api/transactions/') && req.method === 'PUT') {
+    const id = pathname.split('/').pop();
+    let body = '';
+    req.on('data', (chunk) => {
+      body += chunk.toString('utf8');
+      if (body.length > 2e6) {
+        // attachments can be larger; still keep a reasonable limit
+        req.destroy();
+      }
+    });
+    req.on('end', () => {
+      try {
+        const data = JSON.parse(body || '{}');
+        const list = readTransactions();
+        const idx = list.findIndex((t) => t.id === id);
+        if (idx === -1) {
+          return sendJson(res, 404, { ok: false, error: 'Transactie niet gevonden' });
+        }
+
+        const current = list[idx];
+        const updated = Object.assign({}, current, {
+          date: typeof data.date === 'string' ? data.date : current.date,
+          description:
+            typeof data.description === 'string' ? data.description : current.description,
+          amount:
+            typeof data.amount !== 'undefined' ? (Number(data.amount) || 0) : current.amount,
+          vatRate:
+            typeof data.vatRate !== 'undefined' ? (Number(data.vatRate) || 0) : (Number(current.vatRate) || 0),
+          type:
+            data.type === 'expense' ? 'expense' : (data.type === 'income' ? 'income' : current.type),
+          category:
+            typeof data.category === 'string' ? data.category : (current.category || ''),
+          // Optional attachment fields (stored as data URL for simplicity)
+          attachmentName:
+            typeof data.attachmentName === 'string' ? data.attachmentName : current.attachmentName,
+          attachmentData:
+            typeof data.attachmentData === 'string' ? data.attachmentData : current.attachmentData,
+          updatedAt: new Date().toISOString(),
+        });
+
+        list[idx] = updated;
+        writeTransactions(list);
+        const settings = readSettings();
+        return sendJson(res, 200, {
+          ok: true,
+          transaction: updated,
+          summary: calculateSummary(list, settings),
+        });
+      } catch (e) {
+        console.error('Error parsing PUT body:', e);
+        return sendJson(res, 400, { ok: false, error: 'Invalid JSON body' });
+      }
+    });
+    return;
+  }
+
   if (pathname.startsWith('/api/transactions/') && req.method === 'DELETE') {
     const id = pathname.split('/').pop();
     const list = readTransactions();

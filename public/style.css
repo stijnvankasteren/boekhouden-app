@@ -480,3 +480,122 @@ th {
 .sheet-list li + li {
   margin-top: 0.25rem;
 }
+
+/* Generic helper */
+.hidden {
+  display: none !important;
+}
+
+/* --- Icon buttons in table actions --- */
+.icon-btn {
+  border: 1px solid var(--border);
+  background: #fff;
+  border-radius: 10px;
+  padding: 0.28rem 0.45rem;
+  font-size: 0.95rem;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.icon-btn:hover {
+  background: var(--bg-soft);
+}
+
+.icon-btn.attached {
+  background: var(--blue-soft);
+  border-color: rgba(37, 99, 235, 0.25);
+}
+
+.action-stack {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+/* --- Modal (popup) --- */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  z-index: 50;
+}
+
+.modal {
+  width: min(620px, 100%);
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  box-shadow: 0 20px 60px rgba(15, 23, 42, 0.25);
+  padding: 1rem;
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}
+
+.modal-close {
+  border: 1px solid var(--border);
+  background: #fff;
+  border-radius: 10px;
+  padding: 0.25rem 0.5rem;
+  cursor: pointer;
+}
+
+.modal-close:hover {
+  background: var(--bg-soft);
+}
+
+.modal-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+@media (max-width: 640px) {
+  .modal-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+/* Backwards compatible grid helpers used in markup */
+.grid-2 {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.grid-3 {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+@media (max-width: 640px) {
+  .grid-2, .grid-3 {
+    grid-template-columns: 1fr;
+  }
+}
+
+.btn-secondary {
+  background: #fff;
+  border: 1px solid var(--border);
+  color: var(--text-main);
+}
+
+.btn-secondary:hover {
+  background: var(--bg-soft);
+}
