@@ -430,46 +430,38 @@ function renderTable(transactions) {
     return;
   }
 
+  let i = 0;
   for (const tx of transactions) {
+    i += 1;
     const row = document.createElement('tr');
     row.classList.add('tx-row-click');
     row.addEventListener('click', () => openTxDrawer(tx));
 
-    const dateCell = document.createElement('td');
-    dateCell.textContent = tx.date;
-    row.appendChild(dateCell);
+    // Boeking (Jortt-achtig)
+    const bookingCell = document.createElement('td');
+    bookingCell.textContent = `Boeking ${i} ${tx.type === 'expense' ? 'Kosten' : 'Opbrengsten'}`;
+    row.appendChild(bookingCell);
 
-    const descCell = document.createElement('td');
-    descCell.textContent = tx.description;
-    row.appendChild(descCell);
-
-    const typeCell = document.createElement('td');
-    typeCell.textContent = tx.type === 'expense' ? 'Uitgave' : 'Inkomst';
-    typeCell.className =
-      tx.type === 'expense' ? 'tx-type-expense' : 'tx-type-income';
-    row.appendChild(typeCell);
-
-    // Category cell: show selected category or '-' when none
+    // Specifieke kosten (categorie)
     const catCell = document.createElement('td');
     catCell.textContent = tx.category ? tx.category : '-';
     row.appendChild(catCell);
 
-    // VAT rate column (as percentage) next to category
-    const vatRateCell = document.createElement('td');
-    // Btw-percentage per transactie wordt opgeslagen als "21" / "9" / "0" (dus al in procenten).
-    const txVatRate = Number(tx.vatRate ?? tx.vat_rate ?? 0) || 0;
-    vatRateCell.textContent = String(txVatRate) + '%';
-    vatRateCell.style.textAlign = 'right';
-    row.appendChild(vatRateCell);
+    // Datum
+    const dateCell = document.createElement('td');
+    dateCell.textContent = tx.date;
+    row.appendChild(dateCell);
 
-    const amountExclCell = document.createElement('td');
+    // Omschrijving
+    const descCell = document.createElement('td');
+    descCell.textContent = tx.description;
+    row.appendChild(descCell);
+
+    // Btw-bedrag + Bedrag incl. btw
     const baseAmount = Number(tx.amount) || 0;
+    const txVatRate = Number(tx.vatRate ?? tx.vat_rate ?? 0) || 0;
     const vatAmount = baseAmount * (txVatRate / 100);
     const amountIncl = baseAmount + vatAmount;
-
-    amountExclCell.textContent = formatCurrency(baseAmount);
-    amountExclCell.style.textAlign = 'right';
-    row.appendChild(amountExclCell);
 
     const vatCell = document.createElement('td');
     vatCell.textContent = formatCurrency(vatAmount);
@@ -481,56 +473,9 @@ function renderTable(transactions) {
     amountInclCell.style.textAlign = 'right';
     row.appendChild(amountInclCell);
 
-    const actionCell = document.createElement('td');
-    const stack = document.createElement('div');
-    stack.className = 'action-stack';
-
-    // Edit (pencil) button
-    const editBtn = document.createElement('button');
-    editBtn.className = 'icon-btn';
-    editBtn.type = 'button';
-    editBtn.textContent = '✏️';
-    editBtn.title = 'Transactie bewerken';
-    editBtn.addEventListener('click', (ev) => { ev.stopPropagation(); openTxDrawer(tx, {startInEdit:true}); });
-    stack.appendChild(editBtn);
-
-    // Attachment (paperclip) button
-    const attBtn = document.createElement('button');
-    attBtn.className = 'icon-btn' + (tx.attachmentData ? ' attached' : '');
-    attBtn.type = 'button';
-    attBtn.textContent = '📎';
-    attBtn.title = tx.attachmentData ? 'Bijlage bekijken' : 'Bon/factuur koppelen';
-    attBtn.addEventListener('click', (ev) => { ev.stopPropagation();
-      openAttachmentModal(tx);
-    });
-    stack.appendChild(attBtn);
-
-    // Delete button
-    const delBtn = document.createElement('button');
-    delBtn.textContent = 'Verwijderen';
-    delBtn.style.background = '#ef4444';
-    delBtn.style.fontSize = '0.75rem';
-    delBtn.style.padding = '0.25rem 0.5rem';
-    delBtn.addEventListener('click', async (ev) => { ev.stopPropagation();
-      if (!confirm('Transactie verwijderen?')) return;
-      await fetch('/api/transactions/' + encodeURIComponent(tx.id), {
-        method: 'DELETE',
-      });
-      await reload();
-    });
-    stack.appendChild(delBtn);
-
-    actionCell.appendChild(stack);
-    row.appendChild(actionCell);
-
     tbody.appendChild(row);
   }
 }
-
-
-// ---- Drawer (Jortt-achtige) ----
-let drawerTx = null;
-let drawerEditMode = false;
 
 function openTxDrawer(tx, opts = {}) {
   drawerTx = tx;
