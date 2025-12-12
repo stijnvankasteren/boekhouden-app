@@ -298,24 +298,61 @@ function normalizeCategoryType(t) {
   return s;
 }
 
+
+function getCategoriesFromSheet() {
+  // Categorieën worden bewaard als HTML in localStorage (sheet view: 'categories').
+  const key = (typeof LS !== 'undefined' && LS.sheetPrefix ? LS.sheetPrefix : 'boekhouden_sheet_') + 'categories';
+  const html = localStorage.getItem(key);
+  if (!html) return [];
+  try {
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    const table = doc.querySelector('#category-table') || doc.querySelector('table');
+    if (!table) return [];
+    const rows = Array.from(table.querySelectorAll('tbody tr'));
+    const out = [];
+    rows.forEach((tr) => {
+      const tds = tr.querySelectorAll('td');
+      if (!tds || tds.length < 2) return;
+      const name = (tds[0].textContent || '').trim();
+      const typeRaw = (tds[1].textContent || '').trim();
+      if (!name) return;
+      out.push({ name, type: normalizeCategoryType(typeRaw) });
+    });
+    return out;
+  } catch (e) {
+    return [];
+  }
+}
+
 function populateCategorySelect() {
   const categorySelect = document.getElementById('category');
   const typeSelect = document.getElementById('type');
   if (!categorySelect || !typeSelect) return;
+
   // Bepaal huidig type (income of expense)
   const currentType = typeSelect.value === 'expense' ? 'uitgave' : 'inkomst';
-  const categories = (currentSettings && Array.isArray(currentSettings.categories))
-    ? currentSettings.categories
-    : [];
+
+  // 1) Probeer categorieën te halen uit het bewerkbare Categorieën-blad (localStorage sheet HTML)
+  // 2) Val terug op settings (voor compatibiliteit)
+  let categories = getCategoriesFromSheet();
+  if (!categories || !categories.length) {
+    categories = (currentSettings && Array.isArray(currentSettings.categories))
+      ? currentSettings.categories.map((c) => ({ name: c.name, type: normalizeCategoryType(c.type) }))
+      : [];
+  }
+
   // Filter categorieën op type
   const filtered = categories.filter((c) => c && normalizeCategoryType(c.type) === currentType);
+
   // Maak de select leeg
   categorySelect.innerHTML = '';
+
   // Voeg een lege optie toe zodat categorie optioneel is
   const emptyOpt = document.createElement('option');
   emptyOpt.value = '';
   emptyOpt.textContent = '- kies -';
   categorySelect.appendChild(emptyOpt);
+
   // Voeg opties toe voor elke categorie
   filtered.forEach((c) => {
     const opt = document.createElement('option');
@@ -324,6 +361,7 @@ function populateCategorySelect() {
     categorySelect.appendChild(opt);
   });
 }
+
 
 // Utility to lighten a hex colour by mixing it with white.  Used for
 // generating a "soft" variant of the theme colour for backgrounds.  The
