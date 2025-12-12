@@ -354,10 +354,25 @@ function renderTable(transactions) {
     catCell.textContent = tx.category ? tx.category : '-';
     row.appendChild(catCell);
 
-    const amountCell = document.createElement('td');
-    amountCell.textContent = formatCurrency(tx.amount);
-    amountCell.style.textAlign = 'right';
-    row.appendChild(amountCell);
+    const amountExclCell = document.createElement('td');
+    const baseAmount = Number(tx.amount) || 0;
+    const txVatRate = Number(tx.vatRate ?? tx.vat_rate ?? 0) || 0;
+    const vatAmount = baseAmount * txVatRate;
+    const amountIncl = baseAmount + vatAmount;
+
+    amountExclCell.textContent = formatCurrency(baseAmount);
+    amountExclCell.style.textAlign = 'right';
+    row.appendChild(amountExclCell);
+
+    const vatCell = document.createElement('td');
+    vatCell.textContent = formatCurrency(vatAmount);
+    vatCell.style.textAlign = 'right';
+    row.appendChild(vatCell);
+
+    const amountInclCell = document.createElement('td');
+    amountInclCell.textContent = formatCurrency(amountIncl);
+    amountInclCell.style.textAlign = 'right';
+    row.appendChild(amountInclCell);
 
     const actionCell = document.createElement('td');
     const btn = document.createElement('button');
