@@ -1336,6 +1336,7 @@ function makeSheetEditable(root) {
   // Special-case: categories sheet gets a dropdown in the "Type" column.
   enhanceCategoryTypeDropdown(root);
   enhanceCategoryRowControls(root);
+  enhanceCategoryBulkType(root);
   enhanceSheetUi(root);
 }
 
@@ -1410,6 +1411,18 @@ function enhanceCategoryRowControls(root) {
     th.textContent = 'Acties';
     headRow.appendChild(th);
   }
+  // Ensure "select all" checkbox exists in header actions cell
+  if (headRow && headRow.children.length >= 4) {
+    const actiesTh = headRow.children[3];
+    if (actiesTh && !actiesTh.querySelector('.select-all')) {
+      actiesTh.innerHTML = '';
+      const label = document.createElement('label');
+      label.className = 'select-all';
+      label.innerHTML = `<input type="checkbox" id="category-select-all"> <span>Alles</span>`;
+      actiesTh.appendChild(label);
+    }
+  }
+
 
   const ensureButtons = (tr) => {
     const tds = Array.from(tr.children);
@@ -1423,6 +1436,7 @@ function enhanceCategoryRowControls(root) {
     if (actionTd.querySelector('button')) return;
 
     actionTd.innerHTML = `
+      <label class="row-select-wrap"><input type="checkbox" class="row-select" aria-label="Selecteer categorie"></label>
       <button type="button" class="icon-btn" data-action="move-up" title="Omhoog">↑</button>
       <button type="button" class="icon-btn" data-action="move-down" title="Omlaag">↓</button>
       <button type="button" class="icon-btn danger" data-action="delete-row" title="Verwijderen">✕</button>
@@ -1458,6 +1472,109 @@ function enhanceCategoryRowControls(root) {
   }, { passive: false });
 }
 
+
+function enhanceCategoryBulkType(root) {
+  const table = root.querySelector('#category-table');
+  if (!table) return;
+
+  // Avoid double init
+  if (root.querySelector('.bulk-type-bar')) return;
+
+  const bar = document.createElement('div');
+  bar.className = 'bulk-type-bar';
+  bar.innerHTML = `
+    <div class="bulk-left">
+      <span class="bulk-hint">Selecteer meerdere categorieën en pas in 1 keer het type aan.</span>
+    </div>
+    <div class="bulk-right">
+      <label class="bulk-label" for="bulk-category-type">Type</label>
+      <select id="bulk-category-type" class="bulk-select">
+        <option value="PASSIVA">PASSIVA</option>
+        <option value="KOSTEN">KOSTEN</option>
+        <option value="OPBRENGSTEN">OPBRENGSTEN</option>
+      </select>
+      <button type="button" class="btn-secondary" id="apply-bulk-type">Type toepassen</button>
+    </div>
+  `;
+
+  table.parentElement.insertBefore(bar, table);
+
+  const msgEl = document.getElementById('sheetMessage');
+  const selectAll = root.querySelector('#category-select-all');
+
+  const updateSelectAllState = () => {
+    if (!selectAll) return;
+    const boxes = Array.from(table.querySelectorAll('input.row-select'));
+    const checked = boxes.filter(b => b.checked);
+
+    if (boxes.length === 0) {
+      selectAll.checked = false;
+      selectAll.indeterminate = false;
+      return;
+    }
+
+    selectAll.checked = checked.length === boxes.length;
+    selectAll.indeterminate = checked.length > 0 && checked.length < boxes.length;
+  };
+
+  if (selectAll) {
+    selectAll.addEventListener('change', () => {
+      const checked = !!selectAll.checked;
+      table.querySelectorAll('input.row-select').forEach((cb) => { cb.checked = checked; });
+      updateSelectAllState();
+    });
+  }
+
+  table.addEventListener('change', (e) => {
+    const cb = e.target && e.target.classList && e.target.classList.contains('row-select') ? e.target : null;
+    if (cb) updateSelectAllState();
+  });
+
+  const btn = bar.querySelector('#apply-bulk-type');
+  const bulkSelect = bar.querySelector('#bulk-category-type');
+
+  if (btn && bulkSelect) {
+    btn.addEventListener('click', () => {
+      const newType = bulkSelect.value;
+      const rows = Array.from(table.querySelectorAll('tbody tr'));
+      let changed = 0;
+
+      rows.forEach((tr) => {
+        const cb = tr.querySelector('input.row-select');
+        if (!cb || !cb.checked) return;
+
+        const sel = tr.querySelector('select.cell-select');
+        if (sel) {
+          sel.value = newType;
+          sel.dispatchEvent(new Event('change', { bubbles: true }));
+          changed++;
+          return;
+        }
+
+        const tds = tr.querySelectorAll('td');
+        if (tds && tds.length >= 2) {
+          tds[1].textContent = newType;
+          changed++;
+        }
+      });
+
+      updateSelectAllState();
+
+      if (msgEl) {
+        if (changed === 0) {
+          msgEl.textContent = 'Selecteer eerst één of meerdere categorieën.';
+          msgEl.className = 'sheet-message warning';
+        } else {
+          msgEl.textContent = 'Type aangepast voor ' + changed + ' categorie' + (changed === 1 ? '' : 'ën') + '.';
+          msgEl.className = 'sheet-message success';
+        }
+      }
+    });
+  }
+
+  updateSelectAllState();
+}
+
 function addRowToTable(table) {
   if (!table) return;
   const headRow = table.querySelector('thead tr');
@@ -1473,6 +1590,7 @@ function addRowToTable(table) {
       td.classList.add('row-actions');
       td.removeAttribute('contenteditable');
       td.innerHTML = `
+        <label class="row-select-wrap"><input type="checkbox" class="row-select" aria-label="Selecteer categorie"></label>
         <button type="button" class="icon-btn" data-action="move-up" title="Omhoog">↑</button>
         <button type="button" class="icon-btn" data-action="move-down" title="Omlaag">↓</button>
         <button type="button" class="icon-btn danger" data-action="delete-row" title="Verwijderen">✕</button>

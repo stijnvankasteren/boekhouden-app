@@ -750,3 +750,56 @@ th {
 
 /* Dropdown in sheet cells */
 .sheet-table td .cell-select{width:100%; border:1px solid #d7dde6; border-radius:10px; padding:8px 10px; font: inherit; background:#fff;}
+
+/* Bulk type actions for categories */
+.bulk-type-bar{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:12px;
+  padding:10px 12px;
+  border:1px solid #e5e7eb;
+  border-radius:10px;
+  background:#fff;
+  margin:10px 0 12px;
+}
+.bulk-hint{
+  color:#6b7280;
+  font-size:13px;
+}
+.bulk-right{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  flex-wrap:wrap;
+}
+.bulk-label{
+  font-size:13px;
+  color:#374151;
+}
+.bulk-select{
+  border:1px solid #d1d5db;
+  border-radius:8px;
+  padding:6px 10px;
+  background:#fff;
+}
+.select-all{
+  display:flex;
+  align-items:center;
+  gap:6px;
+  font-weight:600;
+}
+.row-actions{
+  white-space:nowrap;
+}
+.row-select-wrap{
+  display:inline-flex;
+  align-items:center;
+  margin-right:8px;
+}
+.row-select{
+  width:16px;
+  height:16px;
+}
+.sheet-message.warning{ color:#b45309; }
+.sheet-message.success{ color:#15803d; }
