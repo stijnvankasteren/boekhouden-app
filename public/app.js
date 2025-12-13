@@ -1976,6 +1976,9 @@ function applyView() {
   // Captions are shown by default; specific views can hide them.
   captionEls.forEach((el) => el.classList.remove('hidden'));
 
+  // Zorg dat headers standaard zichtbaar zijn; sommige views (zoals Categorieën) verbergen dit.
+  document.querySelectorAll('.panel-header').forEach((h) => h.classList.remove('hidden'));
+
   const rightTitle = titleEls[1] || titleEls[0];
   const rightCaption = captionEls[1] || captionEls[0];
 
@@ -2000,10 +2003,12 @@ function applyView() {
       txs = [];
       break;
     case 'categories':
-      rightTitle.textContent = 'Categorieën';
-      // Minimal view: only the title + table.
-      rightCaption.textContent = '';
-      rightCaption.classList.add('hidden');
+      // Minimal view: alleen de tabel (geen kop/caption)
+      if (rightTitle) rightTitle.textContent = '';
+      if (rightCaption) { rightCaption.textContent = ''; rightCaption.classList.add('hidden'); }
+      // Verberg de hele header boven de tabel
+      const rightHeader = (rightTitle && rightTitle.closest('.panel-header')) || null;
+      if (rightHeader) rightHeader.classList.add('hidden');
       txs = [];
       break;
     case 'accounts':
@@ -2073,6 +2078,7 @@ function applyView() {
 
   if (sheetViews.includes(currentView)) {
     if (sheet) sheet.style.display = '';
+    if (sheet) sheet.classList.toggle('sheet-content--flush', currentView === 'categories');
     // Categorieën komen uit Excel en zijn read-only; daar hoort geen "Wijzigingen opslaan" bij.
     if (toolbar) toolbar.style.display = (currentView === 'categories' ? 'none' : '');
     setSheetContent(currentView);

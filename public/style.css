@@ -815,3 +815,15 @@ th {
 }
 .sheet-message.warning{ color:#b45309; }
 .sheet-message.success{ color:#15803d; }
+
+
+/* Categorieën: tabel direct zonder extra witruimte */
+.sheet-section--flush {
+  margin-top: 0;
+}
+
+
+/* Categorieën: geen extra ruimte boven de tabel */
+.sheet-content--flush {
+  margin-top: 0;
+}
