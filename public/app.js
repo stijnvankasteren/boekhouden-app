@@ -184,6 +184,92 @@ async function openAttachmentDataUrl(dataUrl, filename) {
 
 let attachmentModalTxId = null;
 
+// Voeg (eenmalig) standaard kosten-categorieën toe aan de categorieën-sheet.
+// Dit zorgt ervoor dat nieuwe installaties én bestaande installaties (zonder reset)
+// de lijst uit de grootboek-categorieën meteen beschikbaar hebben.
+function ensureDefaultKostenCategoriesSeed() {
+  const FLAG = 'boekhouden_seed_kosten_categories_v1';
+  if (localStorage.getItem(FLAG) === '1') return;
+
+  const KEY = 'boekhouden_sheet_categories';
+
+  const defaults = [
+    '4500 Huisvestingskosten',
+    '4600 Autokosten',
+    '4640 Kilometervergoeding',
+    '4700 Reclame en advertenties',
+    '4730 Relatiegeschenken',
+    '4740 Reis- en verblijfkosten',
+    '4742 Representatie en verteer',
+    '4790 Overige verkoopkosten',
+    '4800 Afschrijvingskosten',
+    '4900 Telefoon en internet',
+    '4910 Contributies en abonnementen',
+    '4915 Cursussen/seminars',
+    '4920 Verzekeringen',
+    '4930 Kantoorbenodigdheden',
+    '4931 Kleine aanschaf kantoor',
+    '4932 Vakliteratuur',
+    '4933 Software',
+    '4940 Accountants- en administratiekosten',
+    '4950 Drukwerk, porti en vrachten',
+    '4960 Branche-organisatiekosten',
+    '4980 Bankkosten',
+    '4990 Overige algemene kosten',
+    '7000 Inkopen',
+    '7100 Uitbesteed werk',
+    '9090 Rente baten',
+    '9190 Rente lasten',
+    '9300 Betalingsverschillen',
+  ];
+
+  // Haal huidige html op (opgeslagen of template-default)
+  let html = localStorage.getItem(KEY);
+  if (!html) {
+    const tpl = document.getElementById('tpl-categories');
+    html = tpl ? tpl.innerHTML : '';
+  }
+  if (!html) {
+    localStorage.setItem(FLAG, '1');
+    return;
+  }
+
+  const doc = new DOMParser().parseFromString(`<div id="_wrap">${html}</div>`, 'text/html');
+  const tbody = doc.querySelector('#_wrap #category-table tbody');
+  if (!tbody) {
+    localStorage.setItem(FLAG, '1');
+    return;
+  }
+
+  // Bestaande namen
+  const existing = new Set(
+    Array.from(tbody.querySelectorAll('tr td:first-child'))
+      .map((td) => (td.textContent || '').trim())
+      .filter(Boolean)
+  );
+
+  // Normaliseer legacy types (inkomst/uitgave) naar nieuwe labels
+  for (const tr of Array.from(tbody.querySelectorAll('tr'))) {
+    const tds = tr.querySelectorAll('td');
+    if (tds.length < 2) continue;
+    const raw = (tds[1].textContent || '').trim().toLowerCase();
+    if (raw === 'uitgave') tds[1].textContent = 'KOSTEN';
+    if (raw === 'inkomst') tds[1].textContent = 'OPBRENGSTEN';
+  }
+
+  // Voeg ontbrekende defaults toe als KOSTEN
+  for (const name of defaults) {
+    if (existing.has(name)) continue;
+    const tr = doc.createElement('tr');
+    tr.innerHTML = `<td>${name}</td><td>KOSTEN</td><td></td><td></td>`;
+    tbody.appendChild(tr);
+  }
+
+  const wrap = doc.querySelector('#_wrap');
+  localStorage.setItem(KEY, wrap ? wrap.innerHTML : html);
+  localStorage.setItem(FLAG, '1');
+}
+
 function openAttachmentModal(tx, viewOnly = false) {
   const overlay = document.getElementById('attModal');
   if (!overlay) return;
@@ -1819,6 +1905,9 @@ async function onSubmit(event) {
 }
 
 window.addEventListener('DOMContentLoaded', () => {
+  // Zorg dat de standaard kosten-categorieën beschikbaar zijn (eenmalige seed).
+  ensureDefaultKostenCategoriesSeed();
+
   const todayInput = document.getElementById('date');
   if (todayInput) {
     todayInput.valueAsDate = new Date();
