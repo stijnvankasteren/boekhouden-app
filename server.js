@@ -141,6 +141,7 @@ function serveStatic(req, res) {
     if (pathname.endsWith('.html')) contentType = 'text/html; charset=utf-8';
     else if (pathname.endsWith('.css')) contentType = 'text/css; charset=utf-8';
     else if (pathname.endsWith('.js')) contentType = 'application/javascript; charset=utf-8';
+    else if (pathname.endsWith('.xlsx')) contentType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 
     res.writeHead(200, { 'Content-Type': contentType });
     res.end(data);

@@ -1413,6 +1413,23 @@ function makeSheetEditable(root) {
   enhanceSheetUi(root);
 }
 
+// Maak (delen van) een sheet read-only. Dit wordt gebruikt voor het
+// categorieën-tabblad, omdat categorieën uit Excel worden ingelezen.
+function makeSheetReadOnly(root) {
+  if (!root) return;
+  root.querySelectorAll('td[contenteditable]').forEach((td) => {
+    td.removeAttribute('contenteditable');
+  });
+  // Als er toch inputs/selects in de categorieën-tabel staan (legacy opgeslagen sheet),
+  // schakel ze uit zodat je niets per ongeluk in de UI aanpast.
+  const catTable = root.querySelector('#category-table');
+  if (catTable) {
+    catTable.querySelectorAll('input, select, textarea').forEach((el) => {
+      el.disabled = true;
+    });
+  }
+}
+
 
 function enhanceSheetUi(root) {
   if (!root) return;
@@ -1743,7 +1760,11 @@ function setSheetContent(view) {
   const cached = sheetCache[view];
   if (typeof cached === 'string') {
     container.innerHTML = cached;
-    makeSheetEditable(container);
+    if (view === 'categories') {
+      makeSheetReadOnly(container);
+    } else {
+      makeSheetEditable(container);
+    }
     return;
   }
 
@@ -1751,31 +1772,24 @@ function setSheetContent(view) {
   if (tpl && tpl.content) {
     const fragment = tpl.content.cloneNode(true);
     container.appendChild(fragment);
-    // Als we naar het categorieën-tabblad gaan, vul dan de tabel met de
-    // bestaande categorieën uit de instellingen (currentSettings.categories).
-    if (view === 'categories' && currentSettings && Array.isArray(currentSettings.categories)) {
+    // Categorieën: toon (read-only) de lijst uit Excel. Als die nog niet geladen is,
+    // blijft de tabel leeg tot de sheet vanuit localStorage wordt geladen.
+    if (view === 'categories') {
       const table = container.querySelector('#category-table');
-      if (table) {
-        const tbody = table.querySelector('tbody');
-        if (tbody) {
-          tbody.innerHTML = '';
-          currentSettings.categories.forEach((cat) => {
-            const tr = document.createElement('tr');
-            const tdName = document.createElement('td');
-            tdName.textContent = cat.name || '';
-            const tdType = document.createElement('td');
-            tdType.textContent = cat.type || '';
-            const tdNotes = document.createElement('td');
-            tdNotes.textContent = cat.notes || '';
-            tr.appendChild(tdName);
-            tr.appendChild(tdType);
-            tr.appendChild(tdNotes);
-            tbody.appendChild(tr);
-          });
-        }
+      const tbody = table ? table.querySelector('tbody') : null;
+      const cats = Array.isArray(excelCategories) ? excelCategories : null;
+      if (tbody && cats && cats.length) {
+        tbody.innerHTML = '';
+        cats.forEach((c) => {
+          const tr = document.createElement('tr');
+          tr.innerHTML = `<td>${escapeHtml(c.name)}</td><td>${escapeHtml(c.type)}</td><td>${escapeHtml(c.notes || '')}</td>`;
+          tbody.appendChild(tr);
+        });
       }
+      makeSheetReadOnly(container);
+    } else {
+      makeSheetEditable(container);
     }
-    makeSheetEditable(container);
   } else {
     const p = document.createElement('p');
     p.textContent = 'Geen inhoud beschikbaar voor dit tabblad.';
@@ -1787,7 +1801,11 @@ function setSheetContent(view) {
     loadSheetFromServer(view).then((html) => {
       if (html) {
         container.innerHTML = html;
-        makeSheetEditable(container);
+        if (view === 'categories') {
+          makeSheetReadOnly(container);
+        } else {
+          makeSheetEditable(container);
+        }
       }
     });
   }
@@ -2003,7 +2021,8 @@ function applyView() {
 
   if (sheetViews.includes(currentView)) {
     if (sheet) sheet.style.display = '';
-    if (toolbar) toolbar.style.display = '';
+    // Categorieën komen uit Excel en zijn read-only; daar hoort geen "Wijzigingen opslaan" bij.
+    if (toolbar) toolbar.style.display = (currentView === 'categories' ? 'none' : '');
     setSheetContent(currentView);
   } else {
     if (sheet) {
@@ -2097,9 +2116,14 @@ async function onSubmit(event) {
   }
 }
 
-window.addEventListener('DOMContentLoaded', () => {
+window.addEventListener('DOMContentLoaded', async () => {
   // Lees categorieën uit het Excel-bestand (bron van waarheid).
-  ensureCategoriesFromExcel();
+  // We wachten hierop zodat de categorie-dropdown in "Nieuwe transactie" meteen gevuld kan worden.
+  await ensureCategoriesFromExcel();
+  // Houd de sheetCache in sync, zodat het categorieën-tabblad direct de Excel-versie toont.
+  const excelSheetHtml = localStorage.getItem('boekhouden_sheet_categories');
+  if (excelSheetHtml) sheetCache.categories = excelSheetHtml;
+  populateCategorySelect();
 
   const todayInput = document.getElementById('date');
   if (todayInput) {
@@ -2127,6 +2151,40 @@ window.addEventListener('DOMContentLoaded', () => {
       saveCurrentSheet();
     });
   }
+
+  // Categorieën: herlaad Excel zonder de hele pagina te refreshen.
+  document.addEventListener('click', async (event) => {
+    const btn = event.target && event.target.closest ? event.target.closest('#reloadCategoriesExcelBtn') : null;
+    if (!btn) return;
+    event.preventDefault();
+
+    const setStatus = (text, cls) => {
+      const el = document.getElementById('categoriesExcelStatus');
+      if (!el) return;
+      el.textContent = text || '';
+      el.className = 'sheet-message' + (cls ? ' ' + cls : '');
+    };
+
+    try {
+      btn.disabled = true;
+      setStatus('Excel wordt opnieuw ingeladen…');
+      await ensureCategoriesFromExcel();
+      const html = localStorage.getItem('boekhouden_sheet_categories');
+      if (html) sheetCache.categories = html;
+      // Refresh de categorieën-sheet als je daar nu bent
+      if (currentView === 'categories') {
+        setSheetContent('categories');
+      }
+      // Update de dropdown in het boekingsformulier
+      populateCategorySelect();
+      setStatus('Excel opnieuw ingeladen', 'ok');
+    } catch (e) {
+      console.error(e);
+      setStatus('Fout bij opnieuw inladen', 'error');
+    } finally {
+      btn.disabled = false;
+    }
+  });
 
   document.querySelectorAll('.top-nav .nav-link').forEach((btn) => {
     btn.addEventListener('click', (event) => {
