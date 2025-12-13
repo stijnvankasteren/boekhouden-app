@@ -429,6 +429,79 @@ function getCategoriesFromSheet() {
 }
 
 
+
+let excelCategories = null;
+
+/**
+ * Load categories from the Excel file in /public/data/categorieen.xlsx.
+ * Expected columns in the first sheet: Categorie, Type, Opmerkingen
+ */
+async function loadCategoriesFromExcel() {
+  try {
+    if (!window.XLSX) return null;
+    const res = await fetch('data/categorieen.xlsx', { cache: 'no-store' });
+    if (!res.ok) return null;
+    const buf = await res.arrayBuffer();
+    const wb = XLSX.read(buf, { type: 'array' });
+    const sheetName = wb.SheetNames && wb.SheetNames[0];
+    if (!sheetName) return null;
+    const ws = wb.Sheets[sheetName];
+    const rows = XLSX.utils.sheet_to_json(ws, { defval: '' });
+    const cats = [];
+    rows.forEach((r) => {
+      const name = String(r.Categorie || r.categorie || r.Naam || r.naam || '').trim();
+      if (!name) return;
+      const type = normalizeCategoryType(String(r.Type || r.type || '').trim());
+      const notes = String(r.Opmerkingen || r.opmerkingen || r.Notes || r.notes || '').trim();
+      cats.push({ name, type, notes });
+    });
+    return cats.length ? cats : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+/**
+ * Ensure the Categories sheet (and booking dropdown) uses Excel as source of truth.
+ * This overwrites the locally saved Categories sheet HTML so order matches Excel.
+ */
+async function ensureCategoriesFromExcel() {
+  const cats = await loadCategoriesFromExcel();
+  if (!cats) return;
+
+  excelCategories = cats;
+
+  // Update stored Categories sheet HTML so the UI reflects Excel order/content
+  try {
+    const tpl = document.getElementById('tpl-categories');
+    if (!tpl) return;
+
+    const doc = new DOMParser().parseFromString(`<div id="_wrap">${tpl.innerHTML}</div>`, 'text/html');
+    const tbody = doc.querySelector('#_wrap #category-table tbody');
+    if (!tbody) return;
+
+    tbody.innerHTML = '';
+    cats.forEach((c) => {
+      const tr = doc.createElement('tr');
+      tr.innerHTML = `<td>${escapeHtml(c.name)}</td><td>${escapeHtml(c.type)}</td><td>${escapeHtml(c.notes || '')}</td>`;
+      tbody.appendChild(tr);
+    });
+
+    localStorage.setItem('boekhouden_sheet_categories', doc.querySelector('#_wrap').innerHTML);
+  } catch (e) {
+    // ignore
+  }
+}
+
+function escapeHtml(s) {
+  return String(s || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 function populateCategorySelect() {
   const categorySelect = document.getElementById('category');
   const typeSelect = document.getElementById('type');
@@ -1404,7 +1477,8 @@ function enhanceCategoryRowControls(root) {
   const table = root.querySelector('#category-table');
   if (!table) return;
 
-  // Ensure header has an "Acties" column
+  return; // bulk/actions disabled: categories come from Excel
+// Ensure header has an "Acties" column
   const headRow = table.querySelector('thead tr');
   if (headRow && headRow.children.length < 4) {
     const th = document.createElement('th');
@@ -1477,7 +1551,8 @@ function enhanceCategoryBulkType(root) {
   const table = root.querySelector('#category-table');
   if (!table) return;
 
-  // Avoid double init
+  return; // bulk/actions disabled: categories come from Excel
+// Avoid double init
   if (root.querySelector('.bulk-type-bar')) return;
 
   const bar = document.createElement('div');
@@ -2023,8 +2098,8 @@ async function onSubmit(event) {
 }
 
 window.addEventListener('DOMContentLoaded', () => {
-  // Zorg dat de standaard kosten-categorieën beschikbaar zijn (eenmalige seed).
-  ensureDefaultKostenCategoriesSeed();
+  // Lees categorieën uit het Excel-bestand (bron van waarheid).
+  ensureCategoriesFromExcel();
 
   const todayInput = document.getElementById('date');
   if (todayInput) {
