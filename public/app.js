@@ -1973,6 +1973,9 @@ function applyView() {
   const titleEls = document.querySelectorAll('.panel-header h2');
   const captionEls = document.querySelectorAll('.panel-caption');
 
+  // Captions are shown by default; specific views can hide them.
+  captionEls.forEach((el) => el.classList.remove('hidden'));
+
   const rightTitle = titleEls[1] || titleEls[0];
   const rightCaption = captionEls[1] || captionEls[0];
 
@@ -1998,8 +2001,9 @@ function applyView() {
       break;
     case 'categories':
       rightTitle.textContent = 'Categorieën';
-      rightCaption.textContent =
-        'Beheer hier je categorieën zoals in het Excel-tabblad.';
+      // Minimal view: only the title + table.
+      rightCaption.textContent = '';
+      rightCaption.classList.add('hidden');
       txs = [];
       break;
     case 'accounts':
