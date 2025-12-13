@@ -235,6 +235,18 @@ textarea {
   font-size: 0.9rem;
 }
 
+
+/* Checkbox reset (global input styles would otherwise make checkboxes look like empty pills) */
+input[type="checkbox"]{
+  padding: 0;
+  border-radius: 4px;
+  width: 16px;
+  height: 16px;
+  border: 1px solid var(--border-strong);
+  background: #fff;
+  appearance: auto;
+}
+
 .form-actions {
   grid-column: 1 / -1;
   display: flex;
