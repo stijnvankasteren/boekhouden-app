@@ -242,8 +242,14 @@ function openAttDb() {
   return _attDbPromise;
 }
 
-async function idbPutAttachment(txId, dataUrl, name) {
+// Store attachment payload in IndexedDB.
+// payload is an object: { dataUrl: string, name: string }
+// (A previous buggy build passed the whole payload as `dataUrl`, which caused
+// previews to request "/[object Object]" and show "Not found".)
+async function idbPutAttachment(txId, payload) {
   const db = await openAttDb();
+  const dataUrl = payload && payload.dataUrl ? String(payload.dataUrl) : '';
+  const name = payload && payload.name ? String(payload.name) : '';
   return new Promise((resolve, reject) => {
     const tx = db.transaction(ATT_IDB_STORE, 'readwrite');
     const store = tx.objectStore(ATT_IDB_STORE);
@@ -455,7 +461,16 @@ function openAttachmentModal(tx, viewOnly = false) {
           renderDataUrl('', tx.attachmentName || 'Bijlage');
           return;
         }
-        renderDataUrl(att.dataUrl, att.name || tx.attachmentName || 'Bijlage');
+        // Defensive: migrate legacy bad shape where `dataUrl` was stored as an object
+        // { dataUrl: 'data:...', name: '...' }.
+        let dataUrl = att.dataUrl;
+        let name = att.name || tx.attachmentName || 'Bijlage';
+        if (dataUrl && typeof dataUrl === 'object') {
+          const obj = dataUrl;
+          dataUrl = obj.dataUrl || '';
+          if (!att.name && obj.name) name = obj.name;
+        }
+        renderDataUrl(String(dataUrl || ''), name);
       })
       .catch((err) => {
         console.error(err);
